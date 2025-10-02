@@ -10,12 +10,15 @@ import {
   HeartIcon,
   CubeIcon,
   ArrowsPointingOutIcon,
-  ArrowsPointingInIcon
+  ArrowsPointingInIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 
 export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect }) {
   const mapRef = useRef(null);
   const map3DRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const autocompleteRef = useRef(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [mapCenter, setMapCenter] = useState({ lat: 40.7128, lng: -74.0060 }); // NYC default
   const [zoom, setZoom] = useState(15);
@@ -27,9 +30,9 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
 
   // Google Maps API Loader
   const loader = new Loader({
-    apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'DEMO_KEY',
+    apiKey: "AIzaSyD4FZThhkEqmJ4wulBCQATOO3BWFuPXO5A",
     version: 'weekly',
-    libraries: ['marker', 'geometry']
+    libraries: ['marker', 'geometry', 'places'] // Added 'places' for location search
   });
 
   useEffect(() => {
@@ -41,6 +44,17 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
       updateWorkflowLayers();
     }
   }, [activeWorkflow, isMapLoaded]);
+
+  // Initialize Google Places Autocomplete
+  useEffect(() => {
+    if (isMapLoaded && searchInputRef.current && !autocompleteRef.current) {
+      // Add slight delay to ensure DOM is fully ready
+      const timer = setTimeout(() => {
+        initializeAutocomplete();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isMapLoaded]);
 
   const initializeMap = async () => {
     try {
@@ -453,6 +467,85 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
     setIsFullscreen(!isFullscreen);
   };
 
+  // Initialize Google Places Autocomplete
+  const initializeAutocomplete = async () => {
+    try {
+      const { Autocomplete } = await google.maps.importLibrary('places');
+
+      if (!searchInputRef.current) {
+        console.error('Search input ref not available');
+        return;
+      }
+
+      const autocomplete = new Autocomplete(searchInputRef.current, {
+        fields: ['geometry', 'name', 'formatted_address', 'place_id'],
+        types: [], // Empty array allows all types (addresses, cities, landmarks, etc.)
+        componentRestrictions: {} // No restrictions - worldwide search
+      });
+
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (place && place.geometry) {
+          handlePlaceSelect(place);
+        } else {
+          console.log('No details available for input: ' + searchInputRef.current.value);
+        }
+      });
+
+      autocompleteRef.current = autocomplete;
+      console.log('✅ Autocomplete initialized successfully');
+    } catch (error) {
+      console.error('❌ Error initializing autocomplete:', error);
+    }
+  };
+
+  // Handle location selection from search
+  const handlePlaceSelect = async (place) => {
+    if (!place.geometry || !place.geometry.location) {
+      console.error('No geometry data for place');
+      return;
+    }
+
+    const newCenter = {
+      lat: place.geometry.location.lat(),
+      lng: place.geometry.location.lng()
+    };
+
+    console.log('📍 Flying to:', place.formatted_address || place.name);
+
+    // Update state
+    setMapCenter(newCenter);
+    setSelectedLocation(newCenter);
+
+    // Fly camera to new location with smooth animation
+    if (map3DRef.current) {
+      try {
+        await map3DRef.current.flyCameraTo({
+          center: newCenter,
+          range: 800, // Good range for viewing the location
+          tilt: 67.5,
+          heading: 0,
+          endCameraOptions: {
+            tilt: 67.5,
+            range: 800
+          }
+        }, { duration: 2000 });
+
+        // Add a marker at the searched location
+        await addSelectionMarker(newCenter);
+
+        // Notify parent component if callback provided
+        if (onLocationSelect) {
+          onLocationSelect([newCenter.lat, newCenter.lng]);
+        }
+
+        console.log('✅ Successfully navigated to location');
+      } catch (error) {
+        console.error('❌ Error flying to location:', error);
+      }
+    }
+  };
+
   const layerOverlays = {
     overview: ['Population Density', 'Infrastructure', 'All Facilities'],
     waste: ['Thermal Anomalies', 'Waste Facilities', 'Collection Routes', 'Illegal Dumps'],
@@ -466,7 +559,7 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
     }`}>
       {/* Map Header */}
       <div className="p-4 bg-gradient-to-r from-blue-500 to-purple-600 border-b border-gray-200 dark:border-gray-600">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
           <div className="flex items-center space-x-3">
             <CubeIcon className="w-6 h-6 text-white" />
             <h3 className="text-xl font-bold text-white drop-shadow-lg">
@@ -474,11 +567,36 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
             </h3>
           </div>
           
+          {/* Location Search */}
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/70 pointer-events-none z-10" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder={isMapLoaded ? "Search for any location..." : "Loading map..."}
+                defaultValue=""
+                className="w-full pl-10 pr-4 py-2.5 text-sm border border-white/30 rounded-lg bg-white/10 backdrop-blur-sm text-white placeholder-white/60 font-medium hover:bg-white/20 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!isMapLoaded}
+                autoComplete="off"
+              />
+              {!isMapLoaded && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          
           <div className="flex space-x-2 items-center">
             <select
               value={mapMode}
               onChange={(e) => setMapMode(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-white/30 rounded-md bg-white/10 backdrop-blur-sm text-white font-medium hover:bg-white/20 transition-colors"
+              className="px-3 py-2 text-sm border border-white/30 rounded-md bg-white/10 backdrop-blur-sm text-white font-medium hover:bg-white/20 transition-colors"
             >
               <option value="3d" className="text-gray-900">3D Photorealistic</option>
               <option value="satellite" className="text-gray-900">Satellite</option>
