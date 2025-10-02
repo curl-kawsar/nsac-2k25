@@ -374,6 +374,51 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
     }
   };
 
+  // Handle zoom in/out for 3D maps
+  const handleZoomIn = async () => {
+    if (!map3DRef.current) return;
+    
+    try {
+      // Get current camera position or use mapCenter
+      const currentRange = zoom * 100; // Convert zoom level to range
+      const newRange = Math.max(currentRange * 0.7, 100); // Zoom in by 30%, min 100m
+      const newZoom = newRange / 100;
+      
+      await map3DRef.current.flyCameraTo({
+        center: mapCenter,
+        range: newRange,
+        tilt: 60,
+        heading: 0
+      });
+      
+      setZoom(newZoom);
+    } catch (error) {
+      console.error('Error zooming in:', error);
+    }
+  };
+
+  const handleZoomOut = async () => {
+    if (!map3DRef.current) return;
+    
+    try {
+      // Get current camera position or use mapCenter
+      const currentRange = zoom * 100; // Convert zoom level to range
+      const newRange = Math.min(currentRange * 1.4, 5000); // Zoom out by 40%, max 5000m
+      const newZoom = newRange / 100;
+      
+      await map3DRef.current.flyCameraTo({
+        center: mapCenter,
+        range: newRange,
+        tilt: 60,
+        heading: 0
+      });
+      
+      setZoom(newZoom);
+    } catch (error) {
+      console.error('Error zooming out:', error);
+    }
+  };
+
   const layerOverlays = {
     overview: ['Population Density', 'Infrastructure', 'All Facilities'],
     waste: ['Thermal Anomalies', 'Waste Facilities', 'Collection Routes', 'Illegal Dumps'],
@@ -458,14 +503,18 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
         {/* Map Controls */}
         <div className="absolute top-4 right-4 flex flex-col space-y-2">
           <button
-            onClick={() => setZoom(Math.min(zoom + 1, 18))}
-            className="w-8 h-8 bg-white dark:bg-gray-800 shadow-lg rounded text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center"
+            onClick={handleZoomIn}
+            disabled={!isMapLoaded}
+            className="w-8 h-8 bg-white dark:bg-gray-800 shadow-lg rounded text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Zoom In"
           >
             +
           </button>
           <button
-            onClick={() => setZoom(Math.max(zoom - 1, 3))}
-            className="w-8 h-8 bg-white dark:bg-gray-800 shadow-lg rounded text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center"
+            onClick={handleZoomOut}
+            disabled={!isMapLoaded}
+            className="w-8 h-8 bg-white dark:bg-gray-800 shadow-lg rounded text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Zoom Out"
           >
             −
           </button>
