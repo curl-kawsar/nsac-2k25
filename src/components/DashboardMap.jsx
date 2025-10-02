@@ -8,7 +8,9 @@ import {
   ExclamationTriangleIcon,
   CloudIcon,
   HeartIcon,
-  CubeIcon 
+  CubeIcon,
+  ArrowsPointingOutIcon,
+  ArrowsPointingInIcon
 } from '@heroicons/react/24/outline';
 
 export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect }) {
@@ -21,6 +23,7 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [markers, setMarkers] = useState([]);
   const [activeCamera, setActiveCamera] = useState('default');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Google Maps API Loader
   const loader = new Loader({
@@ -44,27 +47,40 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
       await loader.load();
       
       if (mapRef.current) {
-        // Initialize 3D Map
+        // Initialize 3D Map with Photorealistic 3D Tiles
         const { Map3DElement } = await google.maps.importLibrary('maps3d');
         
         const map3d = new Map3DElement({
           center: mapCenter,
           range: 1000,
-          tilt: 60,
+          tilt: 67.5, // Optimal tilt for 3D visualization (recommended by Google)
           heading: 0,
-          mapId: 'citywise-3d-map' // You'll need to create this in Google Cloud Console
+          mapId: 'citywise-3d-map', // You'll need to create this in Google Cloud Console
+          defaultLabelsDisabled: false, // Show place labels
+          defaultUIDisabled: false // Enable default UI controls
         });
 
         mapRef.current.appendChild(map3d);
         map3DRef.current = map3d;
 
-        // Add click listener
+        // Add click listener for location selection
         map3d.addEventListener('gmp-click', handleMapClick);
+        
+        // Add camera change listener for smooth transitions
+        map3d.addEventListener('gmp-camerachange', (event) => {
+          const { center, range, tilt, heading } = event.detail;
+          if (center) {
+            setMapCenter({ lat: center.lat, lng: center.lng });
+            setZoom(range / 100);
+          }
+        });
         
         setIsMapLoaded(true);
         
-        // Load initial data
-        loadWorkflowData();
+        // Load initial data with slight delay for smoother experience
+        setTimeout(() => {
+          loadWorkflowData();
+        }, 500);
       }
     } catch (error) {
       console.error('Error loading Google Maps 3D:', error);
@@ -352,11 +368,13 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
   const switchCameraView = async (viewType) => {
     if (!map3DRef.current) return;
 
+    // Optimized camera views for Photorealistic 3D Maps
+    // Tilt: 67.5° is optimal for 3D visualization (Google recommendation)
     const cameraViews = {
-      default: { range: 1000, tilt: 60, heading: 0 },
-      overhead: { range: 2000, tilt: 0, heading: 0 },
-      street: { range: 200, tilt: 75, heading: 45 },
-      bird: { range: 500, tilt: 45, heading: 30 }
+      default: { range: 1000, tilt: 67.5, heading: 0, duration: 2000 },
+      overhead: { range: 2500, tilt: 30, heading: 0, duration: 2500 },
+      street: { range: 150, tilt: 80, heading: 45, duration: 2000 },
+      bird: { range: 600, tilt: 67.5, heading: 135, duration: 2000 }
     };
 
     const view = cameraViews[viewType] || cameraViews.default;
@@ -366,30 +384,38 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
         center: mapCenter,
         range: view.range,
         tilt: view.tilt,
-        heading: view.heading
-      });
+        heading: view.heading,
+        endCameraOptions: {
+          tilt: view.tilt,
+          range: view.range
+        }
+      }, { duration: view.duration });
       setActiveCamera(viewType);
     } catch (error) {
       console.error('Error switching camera view:', error);
     }
   };
 
-  // Handle zoom in/out for 3D maps
+  // Handle zoom in/out for 3D maps with smooth animations
   const handleZoomIn = async () => {
     if (!map3DRef.current) return;
     
     try {
       // Get current camera position or use mapCenter
       const currentRange = zoom * 100; // Convert zoom level to range
-      const newRange = Math.max(currentRange * 0.7, 100); // Zoom in by 30%, min 100m
+      const newRange = Math.max(currentRange * 0.6, 50); // Zoom in by 40%, min 50m
       const newZoom = newRange / 100;
       
       await map3DRef.current.flyCameraTo({
         center: mapCenter,
         range: newRange,
-        tilt: 60,
-        heading: 0
-      });
+        tilt: 67.5, // Maintain optimal 3D viewing angle
+        heading: 0,
+        endCameraOptions: {
+          tilt: 67.5,
+          range: newRange
+        }
+      }, { duration: 800 }); // Smooth 800ms animation
       
       setZoom(newZoom);
     } catch (error) {
@@ -403,20 +429,28 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
     try {
       // Get current camera position or use mapCenter
       const currentRange = zoom * 100; // Convert zoom level to range
-      const newRange = Math.min(currentRange * 1.4, 5000); // Zoom out by 40%, max 5000m
+      const newRange = Math.min(currentRange * 1.5, 10000); // Zoom out by 50%, max 10km
       const newZoom = newRange / 100;
       
       await map3DRef.current.flyCameraTo({
         center: mapCenter,
         range: newRange,
-        tilt: 60,
-        heading: 0
-      });
+        tilt: 67.5, // Maintain optimal 3D viewing angle
+        heading: 0,
+        endCameraOptions: {
+          tilt: 67.5,
+          range: newRange
+        }
+      }, { duration: 800 }); // Smooth 800ms animation
       
       setZoom(newZoom);
     } catch (error) {
       console.error('Error zooming out:', error);
     }
+  };
+
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
   };
 
   const layerOverlays = {
@@ -427,27 +461,41 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden ${
+      isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''
+    }`}>
       {/* Map Header */}
-      <div className="p-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+      <div className="p-4 bg-gradient-to-r from-blue-500 to-purple-600 border-b border-gray-200 dark:border-gray-600">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <CubeIcon className="w-5 h-5 text-blue-500" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <CubeIcon className="w-6 h-6 text-white" />
+            <h3 className="text-xl font-bold text-white drop-shadow-lg">
               3D Photorealistic Map - {activeWorkflow.charAt(0).toUpperCase() + activeWorkflow.slice(1)}
             </h3>
           </div>
           
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 items-center">
             <select
               value={mapMode}
               onChange={(e) => setMapMode(e.target.value)}
-              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              className="px-3 py-1.5 text-sm border border-white/30 rounded-md bg-white/10 backdrop-blur-sm text-white font-medium hover:bg-white/20 transition-colors"
             >
-              <option value="3d">3D Photorealistic</option>
-              <option value="satellite">Satellite</option>
-              <option value="terrain">Terrain</option>
+              <option value="3d" className="text-gray-900">3D Photorealistic</option>
+              <option value="satellite" className="text-gray-900">Satellite</option>
+              <option value="terrain" className="text-gray-900">Terrain</option>
             </select>
+            
+            <button
+              onClick={toggleFullscreen}
+              className="p-2 bg-white/10 backdrop-blur-sm border border-white/30 rounded-md text-white hover:bg-white/20 transition-colors"
+              title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            >
+              {isFullscreen ? (
+                <ArrowsPointingInIcon className="w-5 h-5" />
+              ) : (
+                <ArrowsPointingOutIcon className="w-5 h-5" />
+              )}
+            </button>
           </div>
         </div>
         
@@ -456,7 +504,7 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
           {layerOverlays[activeWorkflow]?.map((layer) => (
             <button
               key={layer}
-              className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+              className="px-3 py-1.5 text-xs bg-white/20 backdrop-blur-sm text-white font-medium rounded-md hover:bg-white/30 transition-colors border border-white/20"
             >
               {layer}
             </button>
@@ -469,10 +517,11 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
             <button
               key={view}
               onClick={() => switchCameraView(view)}
-              className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              disabled={!isMapLoaded}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors font-medium ${
                 activeCamera === view
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
+                  ? 'bg-white text-blue-600'
+                  : 'bg-white/20 backdrop-blur-sm text-white border border-white/20 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               {view.charAt(0).toUpperCase() + view.slice(1)} View
@@ -482,7 +531,9 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
       </div>
 
       {/* Map Container */}
-      <div className="relative h-96">
+      <div className={`relative ${
+        isFullscreen ? 'h-[calc(100vh-180px)]' : 'h-[700px] lg:h-[800px]'
+      }`}>
         {!isMapLoaded && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
             <motion.div
