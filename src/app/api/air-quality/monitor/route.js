@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { mlService } from '@/services/mlService';
+import mlService from '@/services/mlService';
 import nasaApi from '@/services/nasaApi';
 
 // Mock air quality monitoring stations

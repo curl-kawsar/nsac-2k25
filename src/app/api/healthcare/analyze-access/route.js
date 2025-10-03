@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { optimizationService } from '@/services/optimizationService';
+import optimizationService from '@/services/optimizationService';
 
 // Mock healthcare facilities
 const mockHealthcareFacilities = [
