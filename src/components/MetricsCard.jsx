@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 
 export default function MetricsCard({ title, icon: Icon, color, metrics }) {
   const colorClasses = {
@@ -33,9 +32,8 @@ export default function MetricsCard({ title, icon: Icon, color, metrics }) {
   const colorClass = colorClasses[color] || colorClasses.blue;
 
   return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 border ${colorClass.border}`}
+    <div
+      className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 border ${colorClass.border} transition-transform hover:scale-105`}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
@@ -50,12 +48,10 @@ export default function MetricsCard({ title, icon: Icon, color, metrics }) {
       {/* Metrics */}
       <div className="space-y-2">
         {metrics.map((metric, index) => (
-          <motion.div
+          <div
             key={metric.label}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="flex justify-between items-center"
+            className="flex justify-between items-center transition-opacity duration-200"
+            style={{ animationDelay: `${index * 0.1}s` }}
           >
             <span className="text-xs text-gray-600 dark:text-gray-300">
               {metric.label}
@@ -63,7 +59,7 @@ export default function MetricsCard({ title, icon: Icon, color, metrics }) {
             <span className={`text-sm font-semibold ${colorClass.text} dark:text-white`}>
               {metric.value}
             </span>
-          </motion.div>
+          </div>
         ))}
       </div>
 
@@ -79,6 +75,6 @@ export default function MetricsCard({ title, icon: Icon, color, metrics }) {
           </span>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

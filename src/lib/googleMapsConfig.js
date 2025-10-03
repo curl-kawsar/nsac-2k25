@@ -4,7 +4,7 @@
 
 export const GOOGLE_MAPS_CONFIG = {
   // API Configuration
-  apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || AIzaSyD4FZThhkEqmJ4wulBCQATOO3BWFuPXO5A
+  apiKey: "AIzaSyD4FZThhkEqmJ4wulBCQATOO3BWFuPXO5A"
   ,
   version: 'weekly', // Use latest features including 3D
   libraries: ['marker', 'geometry', 'maps3d'], // Essential libraries for CityWISE

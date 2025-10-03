@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { Loader } from '@googlemaps/js-api-loader';
 import { 
   MapPinIcon, 
@@ -14,7 +13,7 @@ import {
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 
-export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect }) {
+export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect, thermalDetectionResults }) {
   const mapRef = useRef(null);
   const map3DRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -27,12 +26,17 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
   const [markers, setMarkers] = useState([]);
   const [activeCamera, setActiveCamera] = useState('default');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [thermalSpots, setThermalSpots] = useState([]);
+  const [showThermalOverlay, setShowThermalOverlay] = useState(false);
+  const [heatMapLayer, setHeatMapLayer] = useState(null);
+  const [showHeatMap, setShowHeatMap] = useState(true);
+  const [regularMap, setRegularMap] = useState(null); // For heatmap compatibility
 
-  // Google Maps API Loader
+  // Google Maps API Loader (no longer need visualization library)
   const loader = new Loader({
     apiKey: "AIzaSyD4FZThhkEqmJ4wulBCQATOO3BWFuPXO5A",
     version: 'weekly',
-    libraries: ['marker', 'geometry', 'places'] // Added 'places' for location search
+    libraries: ['marker', 'geometry', 'places'] // Removed deprecated 'visualization'
   });
 
   useEffect(() => {
@@ -44,6 +48,21 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
       updateWorkflowLayers();
     }
   }, [activeWorkflow, isMapLoaded]);
+
+  // Update thermal spots when detection results change
+  useEffect(() => {
+    if (thermalDetectionResults && thermalDetectionResults.dumps) {
+      setThermalSpots(thermalDetectionResults.dumps);
+      setShowThermalOverlay(true);
+      if (isMapLoaded) {
+        if (showHeatMap) {
+          addThermalHeatMap(thermalDetectionResults.dumps);
+        } else {
+          addThermalSpotMarkers(thermalDetectionResults.dumps);
+        }
+      }
+    }
+  }, [thermalDetectionResults, isMapLoaded]);
 
   // Initialize Google Places Autocomplete
   useEffect(() => {
@@ -206,8 +225,373 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
       // Add thermal anomaly alerts
       await addAlertMarkers('waste_management');
       
+      // Add thermal spots if available
+      if (showThermalOverlay && thermalSpots.length > 0) {
+        if (showHeatMap) {
+          await addThermalHeatMap(thermalSpots);
+        } else {
+          await addThermalSpotMarkers(thermalSpots);
+        }
+      }
+      
     } catch (error) {
       console.error('Error loading waste management data:', error);
+    }
+  };
+
+  // Add thermal spot markers to the map
+  const addThermalSpotMarkers = async (spots) => {
+    if (!map3DRef.current || !spots || spots.length === 0) return;
+
+    try {
+      const { Marker3DElement, Polygon3DElement } = await google.maps.importLibrary('maps3d');
+      
+      // Clear existing thermal markers first
+      clearThermalMarkers();
+      
+      for (const spot of spots) {
+        // Create thermal anomaly visualization based on temperature
+        const intensity = getThermalIntensity(spot.temperature);
+        const color = getThermalColor(spot.temperature);
+        
+        // Create a 3D column representing the thermal anomaly
+        const thermalColumn = document.createElement('gmp-polygon-3d');
+        const radius = 0.0005; // ~50m radius
+        
+        // Create circular polygon
+        const coordinates = [];
+        for (let i = 0; i < 16; i++) {
+          const angle = (i / 16) * 2 * Math.PI;
+          coordinates.push({
+            lat: spot.location.lat + radius * Math.cos(angle),
+            lng: spot.location.lng + radius * Math.sin(angle)
+          });
+        }
+        
+        thermalColumn.outerCoordinates = coordinates;
+        thermalColumn.altitudeMode = 'RELATIVE_TO_GROUND';
+        thermalColumn.extruded = true;
+        thermalColumn.fillColor = color;
+        thermalColumn.fillOpacity = 0.7;
+        thermalColumn.strokeColor = '#ffffff';
+        thermalColumn.strokeWidth = 2;
+        
+        // Set height based on temperature
+        const height = Math.max(10, (spot.temperature - 20) * 2); // Scale temperature to height
+        thermalColumn.drawsOccludedSegments = true;
+        
+        map3DRef.current.appendChild(thermalColumn);
+
+        // Add marker at the center
+        const marker = document.createElement('gmp-marker-3d');
+        marker.position = { lat: spot.location.lat, lng: spot.location.lng };
+        marker.altitudeMode = 'RELATIVE_TO_GROUND';
+        marker.extruded = true;
+        
+        // Create custom content with temperature info
+        const markerContent = document.createElement('div');
+        markerContent.className = 'thermal-marker';
+        markerContent.innerHTML = `
+          <div style="
+            background: ${color};
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            text-align: center;
+            min-width: 60px;
+          ">
+            🔥 ${spot.temperature.toFixed(1)}°C
+            <br>
+            <span style="font-size: 10px; opacity: 0.9;">
+              ${(spot.confidence * 100).toFixed(0)}% confidence
+            </span>
+          </div>
+        `;
+        
+        marker.appendChild(markerContent);
+        map3DRef.current.appendChild(marker);
+      }
+      
+      console.log(`Added ${spots.length} thermal spot markers to map`);
+      
+      // Automatically fly to the thermal detection area
+      if (spots.length > 0) {
+        flyToThermalArea(spots);
+      }
+      
+    } catch (error) {
+      console.error('Error adding thermal spot markers:', error);
+    }
+  };
+
+  // Clear thermal markers (fixed for 3D map elements)
+  const clearThermalMarkers = () => {
+    if (!map3DRef.current) return;
+    
+    try {
+      // Remove existing thermal markers from 3D map
+      const children = Array.from(map3DRef.current.children || []);
+      children.forEach(child => {
+        if (child.tagName === 'GMP-MARKER-3D' && child.getAttribute('data-thermal') === 'true') {
+          child.remove();
+        }
+      });
+    } catch (error) {
+      console.warn('Error clearing thermal markers:', error);
+    }
+  };
+
+  // Get thermal intensity (0-1 scale)
+  const getThermalIntensity = (temperature) => {
+    const minTemp = 25;
+    const maxTemp = 60;
+    return Math.min(1, Math.max(0, (temperature - minTemp) / (maxTemp - minTemp)));
+  };
+
+  // Get color based on temperature
+  const getThermalColor = (temperature) => {
+    if (temperature >= 50) return '#ff0000'; // Critical - Red
+    if (temperature >= 40) return '#ff6600'; // High - Orange-Red
+    if (temperature >= 35) return '#ff9900'; // Medium - Orange
+    return '#ffcc00'; // Low - Yellow
+  };
+
+  // Custom thermal heat map visualization (Google HeatmapLayer deprecated)
+  const addThermalHeatMap = async (spots) => {
+    if (!map3DRef.current || !spots || spots.length === 0) return;
+
+    try {
+      console.log('Creating custom thermal heat map with', spots.length, 'spots...');
+      
+      // Clear existing heat map
+      if (heatMapLayer) {
+        if (heatMapLayer.remove) heatMapLayer.remove();
+        setHeatMapLayer(null);
+      }
+
+      // Create canvas-based heat map overlay
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas size to match map container
+      const mapRect = mapRef.current.getBoundingClientRect();
+      canvas.width = mapRect.width;
+      canvas.height = mapRect.height;
+      canvas.style.position = 'absolute';
+      canvas.style.top = '0';
+      canvas.style.left = '0';
+      canvas.style.pointerEvents = 'none';
+      canvas.style.zIndex = '1000';
+      canvas.style.opacity = '0.8'; // Increased opacity for better visibility
+      
+      // Get current map bounds for coordinate conversion with validation
+      const center = map3DRef.current?.center || mapCenter;
+      const range = map3DRef.current?.range || 1000;
+      
+      // Validate center coordinates
+      const validCenter = {
+        lat: isFinite(center.lat) ? center.lat : mapCenter.lat,
+        lng: isFinite(center.lng) ? center.lng : mapCenter.lng
+      };
+      
+      // Validate range
+      const validRange = isFinite(range) && range > 0 ? range : 1000;
+      
+      // Calculate pixels per degree with validation
+      const metersPerDegree = 111320; // at equator
+      const pixelsPerMeter = Math.min(canvas.width, canvas.height) / validRange;
+      const pixelsPerDegree = metersPerDegree * pixelsPerMeter;
+      
+      // Function to convert lat/lng to canvas pixels with validation
+      const latLngToPixel = (lat, lng) => {
+        // Validate input coordinates
+        if (!isFinite(lat) || !isFinite(lng)) {
+          console.warn('Invalid coordinates:', { lat, lng });
+          return { x: -1, y: -1 }; // Return invalid position
+        }
+        
+        const x = canvas.width / 2 + (lng - validCenter.lng) * pixelsPerDegree;
+        const y = canvas.height / 2 - (lat - validCenter.lat) * pixelsPerDegree; // Inverted Y
+        
+        // Validate calculated pixels
+        if (!isFinite(x) || !isFinite(y)) {
+          console.warn('Invalid pixel calculation:', { x, y, lat, lng });
+          return { x: -1, y: -1 }; // Return invalid position
+        }
+        
+        return { x, y };
+      };
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw heat points with validation
+      spots.forEach(spot => {
+        // Validate spot data
+        if (!spot?.location?.lat || !spot?.location?.lng || !isFinite(spot.temperature)) {
+          console.warn('Invalid spot data:', spot);
+          return;
+        }
+        
+        const pixel = latLngToPixel(spot.location.lat, spot.location.lng);
+        
+        // Skip if invalid pixel coordinates or outside canvas bounds
+        if (pixel.x < 0 || pixel.x > canvas.width || pixel.y < 0 || pixel.y > canvas.height) {
+          return;
+        }
+        
+        // Calculate radius and intensity based on temperature with validation
+        const temperature = isFinite(spot.temperature) ? spot.temperature : 25;
+        const intensity = Math.max(0.1, Math.min(1.0, (temperature - 20) / 40));
+        const radius = Math.max(30, intensity * 120); // 30-120px radius for better visibility
+        
+        // Validate radius
+        if (!isFinite(radius) || radius <= 0) {
+          console.warn('Invalid radius:', radius);
+          return;
+        }
+        
+        // Create radial gradient for heat effect with validation
+        try {
+          const gradient = ctx.createRadialGradient(pixel.x, pixel.y, 0, pixel.x, pixel.y, radius);
+        
+          // Color based on temperature
+          let color;
+          if (temperature >= 50) {
+            color = `rgba(139, 0, 0, ${intensity})`; // Dark red
+          } else if (temperature >= 40) {
+            color = `rgba(255, 0, 0, ${intensity})`; // Red
+          } else if (temperature >= 35) {
+            color = `rgba(255, 127, 0, ${intensity})`; // Orange
+          } else {
+            color = `rgba(255, 255, 0, ${intensity})`; // Yellow
+          }
+          
+          gradient.addColorStop(0, color);
+          gradient.addColorStop(0.5, color.replace(/[\d.]+\)$/g, `${intensity * 0.5})`)); // Fade out
+          gradient.addColorStop(1, 'rgba(0, 0, 0, 0)'); // Transparent edge
+          
+          // Draw the heat point
+          ctx.save();
+          ctx.globalCompositeOperation = 'screen'; // Blend mode for heat effect
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(pixel.x, pixel.y, radius, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.restore();
+          
+        } catch (gradientError) {
+          console.warn('Error creating gradient for spot:', spot, gradientError);
+        }
+      });
+      
+      // Add blur effect for smoother heat map
+      ctx.filter = 'blur(3px)';
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(canvas, 0, 0);
+      ctx.filter = 'none';
+      ctx.globalCompositeOperation = 'source-over';
+      
+      // Add canvas to map
+      mapRef.current.appendChild(canvas);
+      
+      // Store reference for cleanup
+      setHeatMapLayer({ remove: () => canvas.remove(), canvas });
+      
+      // Note: Real-time updates would require manual camera tracking
+      // For now, heat map is static but functional
+      
+      console.log('Custom heat map created successfully');
+      
+      // Automatically fly to the thermal detection area
+      if (spots.length > 0) {
+        flyToThermalArea(spots);
+      }
+      
+    } catch (error) {
+      console.error('Custom heat map creation failed:', error);
+      console.log('Using 3D markers as fallback');
+      addThermalSpotMarkers(spots);
+    }
+  };
+
+  // Fly camera to thermal detection area
+  const flyToThermalArea = (spots) => {
+    if (!map3DRef.current || !spots || spots.length === 0) return;
+
+    try {
+      // Calculate center of all thermal spots
+      const validSpots = spots.filter(spot => 
+        spot?.location?.lat && 
+        spot?.location?.lng && 
+        isFinite(spot.location.lat) && 
+        isFinite(spot.location.lng)
+      );
+
+      if (validSpots.length === 0) return;
+
+      // Calculate bounding box
+      let minLat = validSpots[0].location.lat;
+      let maxLat = validSpots[0].location.lat;
+      let minLng = validSpots[0].location.lng;
+      let maxLng = validSpots[0].location.lng;
+
+      validSpots.forEach(spot => {
+        minLat = Math.min(minLat, spot.location.lat);
+        maxLat = Math.max(maxLat, spot.location.lat);
+        minLng = Math.min(minLng, spot.location.lng);
+        maxLng = Math.max(maxLng, spot.location.lng);
+      });
+
+      // Calculate center point
+      const centerLat = (minLat + maxLat) / 2;
+      const centerLng = (minLng + maxLng) / 2;
+
+      // Calculate appropriate range based on spread of points
+      const latSpread = maxLat - minLat;
+      const lngSpread = maxLng - minLng;
+      const maxSpread = Math.max(latSpread, lngSpread);
+      
+      // Convert degrees to approximate meters (rough calculation)
+      const metersPerDegree = 111320;
+      const spreadInMeters = maxSpread * metersPerDegree;
+      
+      // Set range with some padding (minimum 500m, maximum 10km)
+      const range = Math.max(500, Math.min(10000, spreadInMeters * 2));
+
+      console.log(`Flying to thermal area: center(${centerLat.toFixed(4)}, ${centerLng.toFixed(4)}), range: ${range}m`);
+
+      // Fly to the thermal detection area
+      const targetCamera = {
+        center: { lat: centerLat, lng: centerLng },
+        range: range,
+        tilt: 67.5,
+        heading: map3DRef.current.heading || 0
+      };
+
+      // Try multiple methods to ensure camera movement
+      if (map3DRef.current.flyCameraTo) {
+        map3DRef.current.flyCameraTo({
+          endCamera: targetCamera,
+          durationMillis: 2000
+        });
+      } else if (map3DRef.current.flyCameraAround) {
+        map3DRef.current.flyCameraAround({
+          camera: targetCamera,
+          durationMillis: 2000
+        });
+      } else {
+        // Direct property setting as fallback
+        map3DRef.current.center = targetCamera.center;
+        map3DRef.current.range = targetCamera.range;
+        map3DRef.current.tilt = targetCamera.tilt;
+      }
+
+    } catch (error) {
+      console.warn('Error flying to thermal area:', error);
     }
   };
 
@@ -367,10 +751,43 @@ export default function DashboardMap({ activeWorkflow, alerts, onLocationSelect 
   const clearMarkers = () => {
     // Clear existing markers and overlays
     setMarkers([]);
+    
+    // Custom heat map cleanup (canvas-based)
+    if (heatMapLayer) {
+      try {
+        if (heatMapLayer.remove) {
+          heatMapLayer.remove();
+        } else if (heatMapLayer.canvas) {
+          heatMapLayer.canvas.remove();
+        }
+      } catch (error) {
+        console.warn('Error clearing custom heatmap:', error);
+      }
+      setHeatMapLayer(null);
+    }
+    
+    // Remove any remaining canvas elements
+    if (mapRef.current) {
+      const canvasElements = mapRef.current.querySelectorAll('canvas[style*="z-index: 1000"]');
+      canvasElements.forEach(canvas => {
+        try {
+          canvas.remove();
+        } catch (error) {
+          console.warn('Error removing canvas element:', error);
+        }
+      });
+    }
+    
+    setRegularMap(null);
+    
+    // Clear 3D elements
     if (map3DRef.current && map3DRef.current.children) {
-      // Remove all child elements (markers, models, polygons)
-      while (map3DRef.current.firstChild) {
-        map3DRef.current.removeChild(map3DRef.current.firstChild);
+      try {
+        while (map3DRef.current.firstChild) {
+          map3DRef.current.removeChild(map3DRef.current.firstChild);
+        }
+      } catch (error) {
+        console.warn('Error clearing 3D elements:', error);
       }
     }
   };

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import {
   MapPinIcon,
   ExclamationTriangleIcon,
@@ -10,9 +9,21 @@ import {
   ChartBarIcon,
   BellIcon,
   GlobeAltIcon,
-  CpuChipIcon
+  CpuChipIcon,
+  FireIcon,
+  BuildingOfficeIcon,
+  TrashIcon,
+  CheckCircleIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
-import DashboardMap from '@/components/DashboardMap';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import LeafletMap from '@/components/LeafletMap';
 import MetricsCard from '@/components/MetricsCard';
 import AlertsPanel from '@/components/AlertsPanel';
 import WorkflowPanel from '@/components/WorkflowPanel';
@@ -20,6 +31,8 @@ import WorkflowPanel from '@/components/WorkflowPanel';
 export default function CityWISEDashboard() {
   const [activeWorkflow, setActiveWorkflow] = useState('overview');
   const [isLoading, setIsLoading] = useState(true);
+  const [thermalDetectionResults, setThermalDetectionResults] = useState(null);
+  const [airQualityResults, setAirQualityResults] = useState(null);
   const [dashboardData, setDashboardData] = useState({
     alerts: [],
     metrics: {},
@@ -135,163 +148,349 @@ export default function CityWISEDashboard() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full"
-        />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-3">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center"
-              >
-                <CpuChipIcon className="w-6 h-6 text-white" />
-              </motion.div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  CityWISE
-                </h1>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  City Wellbeing Insights for Sustainable Expansion
-                </p>
+    <div className="min-h-screen bg-background">
+      {/* Modern Header with Shadcn UI */}
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
+                  <CpuChipIcon className="h-6 w-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-foreground">CityWISE</h1>
+                  <p className="text-xs text-muted-foreground">Urban Intelligence Platform</p>
+                </div>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>System Operational</span>
-              </div>
-              
-              <button className="relative p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
-                <BellIcon className="w-6 h-6" />
+              <Badge variant="outline" className="gap-2">
+                <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                System Active
+              </Badge>
+              <Button variant="ghost" size="icon" className="relative">
+                <BellIcon className="h-5 w-5" />
                 {dashboardData.alerts.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs">
                     {dashboardData.alerts.length}
-                  </span>
+                  </Badge>
                 )}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Navigation */}
-      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8">
-            {workflows.map((workflow) => {
-              const Icon = workflow.icon;
-              return (
-                <button
-                  key={workflow.id}
-                  onClick={() => setActiveWorkflow(workflow.id)}
-                  className={`flex items-center space-x-2 py-4 px-1 border-b-2 transition-colors ${
-                    activeWorkflow === workflow.id
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{workflow.name}</span>
-                </button>
-              );
-            })}
-          </div>
+      {/* Modern Navigation with Tabs */}
+      <div className="border-b bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <Tabs value={activeWorkflow} onValueChange={setActiveWorkflow} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-none lg:inline-flex h-12">
+              {workflows.map((workflow) => {
+                const Icon = workflow.icon;
+                return (
+                  <TabsTrigger
+                    key={workflow.id}
+                    value={workflow.id}
+                    className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{workflow.name}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
         </div>
-      </nav>
+      </div>
 
       {/* Main Content */}
       <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Left Panel - Metrics & Controls */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Key Metrics */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Key Metrics
-              </h2>
-              
-              <MetricsCard
-                title="Waste Management"
-                icon={MapPinIcon}
-                color="green"
-                metrics={[
-                  { label: 'Illegal Dumps', value: dashboardData.metrics.wasteManagement.illegalDumps },
-                  { label: 'Efficiency', value: `${dashboardData.metrics.wasteManagement.efficiency}%` },
-                  { label: 'Routes Optimized', value: dashboardData.metrics.wasteManagement.routesOptimized }
-                ]}
-              />
-              
-              <MetricsCard
-                title="Air Quality"
-                icon={CloudIcon}
-                color="purple"
-                metrics={[
-                  { label: 'Average AQI', value: dashboardData.metrics.airQuality.averageAQI },
-                  { label: 'Exceedance Days', value: dashboardData.metrics.airQuality.exceedanceDays },
-                  { label: 'Predicted Improvement', value: `${dashboardData.metrics.airQuality.predictedImprovement}%` }
-                ]}
-              />
-              
-              <MetricsCard
-                title="Healthcare Access"
-                icon={HeartIcon}
-                color="red"
-                metrics={[
-                  { label: 'Access Coverage', value: `${dashboardData.metrics.healthcare.accessCoverage}%` },
-                  { label: 'Healthcare Deserts', value: dashboardData.metrics.healthcare.healthcareDeserts },
-                  { label: 'Emergency Capacity', value: `${dashboardData.metrics.healthcare.emergencyCapacity}%` }
-                ]}
-              />
-            </div>
+          {/* Left Panel - Modern Metrics Cards */}
+          <div className="lg:col-span-1 space-y-4">
+            {/* Waste Management Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrashIcon className="h-4 w-4 text-green-600" />
+                  Waste Management
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Illegal Dumps</span>
+                  <Badge variant="secondary">{dashboardData.metrics.wasteManagement.illegalDumps}</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Efficiency</span>
+                  <Badge variant="outline" className="bg-green-50 text-green-700">
+                    {dashboardData.metrics.wasteManagement.efficiency}%
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Routes Optimized</span>
+                  <Badge variant="secondary">{dashboardData.metrics.wasteManagement.routesOptimized}</Badge>
+                </div>
+              </CardContent>
+            </Card>
 
-            {/* Alerts Panel */}
-            <AlertsPanel alerts={dashboardData.alerts} />
+            {/* Air Quality Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CloudIcon className="h-4 w-4 text-purple-600" />
+                  Air Quality
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Average AQI</span>
+                  <Badge variant="secondary">{dashboardData.metrics.airQuality.averageAQI}</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Exceedance Days</span>
+                  <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                    {dashboardData.metrics.airQuality.exceedanceDays}
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Improvement</span>
+                  <Badge variant="outline" className="bg-green-50 text-green-700">
+                    +{dashboardData.metrics.airQuality.predictedImprovement}%
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Healthcare Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <HeartIcon className="h-4 w-4 text-red-600" />
+                  Healthcare Access
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Coverage</span>
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                    {dashboardData.metrics.healthcare.accessCoverage}%
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Health Deserts</span>
+                  <Badge variant="secondary">{dashboardData.metrics.healthcare.healthcareDeserts}</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Emergency Cap.</span>
+                  <Badge variant="outline" className="bg-green-50 text-green-700">
+                    {dashboardData.metrics.healthcare.emergencyCapacity}%
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* System Status Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CpuChipIcon className="h-4 w-4 text-blue-600" />
+                  System Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">NASA API</span>
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    Active
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Thermal Detection</span>
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                    Ready
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Map Services</span>
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    Online
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Thermal Detection Results */}
+            {thermalDetectionResults && (
+              <Card className="border-orange-200 bg-orange-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FireIcon className="h-4 w-4 text-orange-600" />
+                    Latest Detection
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Thermal Spots</span>
+                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                      {thermalDetectionResults.detectedDumps}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Search Area</span>
+                    <Badge variant="secondary">
+                      {thermalDetectionResults.searchArea?.radius || 50}km
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Status</span>
+                    <Badge variant="outline" className="bg-green-50 text-green-700">
+                      Complete
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Air Quality Results */}
+            {airQualityResults && (
+              <Card className="border-blue-200 bg-blue-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <CloudIcon className="h-4 w-4 text-blue-600" />
+                    Latest Air Quality
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">AQI</span>
+                    <Badge variant="outline" className={`${
+                      airQualityResults.aqi <= 50 ? 'bg-green-50 text-green-700 border-green-200' :
+                      airQualityResults.aqi <= 100 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                      airQualityResults.aqi <= 150 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                      'bg-red-50 text-red-700 border-red-200'
+                    }`}>
+                      {airQualityResults.aqi}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Category</span>
+                    <Badge variant="secondary">
+                      {airQualityResults.category}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Driver</span>
+                    <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                      {airQualityResults.driver}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Location</span>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                      {airQualityResults.city}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
-          {/* Center Panel - Map */}
+          {/* Center Panel - Interactive Map */}
           <div className="lg:col-span-3">
-            <DashboardMap
-              activeWorkflow={activeWorkflow}
-              alerts={dashboardData.alerts}
-              onLocationSelect={(coords) => console.log('Location selected:', coords)}
-            />
+            <Card className="h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <MapPinIcon className="h-5 w-5" />
+                  Interactive Map
+                </CardTitle>
+                <CardDescription>
+                  Real-time thermal detection and urban analytics
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="h-[600px] lg:h-[700px] rounded-lg overflow-hidden">
+                  <LeafletMap
+                    activeWorkflow={activeWorkflow}
+                    alerts={dashboardData.alerts}
+                    thermalDetectionResults={thermalDetectionResults}
+                    airQualityResults={airQualityResults}
+                    onLocationSelect={(coords) => console.log('Location selected:', coords)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Right Panel - Workflow Details */}
+          {/* Right Panel - Workflow Controls */}
           <div className="lg:col-span-1">
-            <WorkflowPanel
-              activeWorkflow={activeWorkflow}
-              workflowData={workflows.find(w => w.id === activeWorkflow)}
-              onAnalyze={(params) => console.log('Analyze:', params)}
-            />
+            <Card className="h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <GlobeAltIcon className="h-5 w-5" />
+                  Workflow Controls
+                </CardTitle>
+                <CardDescription>
+                  {workflows.find(w => w.id === activeWorkflow)?.description}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <WorkflowPanel
+                  activeWorkflow={activeWorkflow}
+                  workflowData={workflows.find(w => w.id === activeWorkflow)}
+                  onAnalyze={(params) => {
+                    console.log('Analyze:', params);
+                    // Handle thermal detection results
+                    if (params.action === 'thermal_detection_results') {
+                      setThermalDetectionResults(params.results);
+                    }
+                    // Handle air quality detection results
+                    if (params.action === 'air_quality_results') {
+                      setAirQualityResults(params.results);
+                    }
+                  }}
+                />
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-300">
-            <div>
-              © 2024 CityWISE Platform - NASA Earth Observation Data Integration
+      {/* Modern Footer */}
+      <footer className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 mt-12">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-2">
+              <GlobeAltIcon className="h-5 w-5 text-primary" />
+              <span className="text-sm font-medium">CityWISE Platform</span>
+              <Separator orientation="vertical" className="h-4" />
+              <span className="text-xs text-muted-foreground">NASA Earth Observation Integration</span>
             </div>
-            <div className="flex space-x-4">
-              <span>NASA API: {dashboardData.systemStatus.nasaApiStatus}</span>
-              <span>ML Models: {dashboardData.systemStatus.mlModelsStatus}</span>
-              <span>Database: {dashboardData.systemStatus.databaseStatus}</span>
+            <div className="flex items-center gap-3 text-xs">
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                NASA API: {dashboardData.systemStatus.nasaApiStatus}
+              </Badge>
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                ML Models: {dashboardData.systemStatus.mlModelsStatus}
+              </Badge>
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                Database: {dashboardData.systemStatus.databaseStatus}
+              </Badge>
             </div>
+          </div>
+          <Separator className="my-4" />
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">
+              © 2024 CityWISE Platform. All rights reserved.
+            </p>
           </div>
         </div>
       </footer>

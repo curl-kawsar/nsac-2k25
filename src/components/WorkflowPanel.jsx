@@ -1,15 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   PlayIcon,
   Cog6ToothIcon,
   ChartBarIcon,
   MapIcon,
   ClockIcon,
-  CpuChipIcon
+  CpuChipIcon,
+  FireIcon,
+  CloudIcon
 } from '@heroicons/react/24/outline';
+import ThermalSpotDetection from './ThermalSpotDetection';
+import AirQualityDetection from './AirQualityDetection';
 
 export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze }) {
   const [analysisParams, setAnalysisParams] = useState({
@@ -18,6 +21,8 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
     radius: 10
   });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showThermalDetection, setShowThermalDetection] = useState(false);
+  const [showAirQualityDetection, setShowAirQualityDetection] = useState(false);
 
   const workflowConfigs = {
     overview: {
@@ -32,6 +37,7 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
     waste: {
       title: 'Waste Management Analysis',
       actions: [
+        { id: 'thermal_detection', label: 'Thermal Spot Detection', icon: FireIcon, special: true },
         { id: 'detect_dumps', label: 'Detect Illegal Dumps', icon: PlayIcon },
         { id: 'optimize_facilities', label: 'Optimize Facilities', icon: Cog6ToothIcon },
         { id: 'optimize_routes', label: 'Optimize Routes', icon: MapIcon }
@@ -60,7 +66,8 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
       actions: [
         { id: 'monitor_current', label: 'Monitor Current', icon: PlayIcon },
         { id: 'run_predictions', label: 'Run Predictions', icon: CpuChipIcon },
-        { id: 'source_attribution', label: 'Source Attribution', icon: ChartBarIcon }
+        { id: 'source_attribution', label: 'Source Attribution', icon: ChartBarIcon },
+        { id: 'air_quality_detection', label: 'Air Quality Analysis', icon: CloudIcon, special: true }
       ],
       parameters: [
         { id: 'aqi_threshold', label: 'AQI Alert Threshold', type: 'number', value: 150, min: 50, max: 300 },
@@ -80,6 +87,16 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
   };
 
   const handleAction = async (actionId) => {
+    if (actionId === 'thermal_detection') {
+      setShowThermalDetection(!showThermalDetection);
+      return;
+    }
+
+    if (actionId === 'air_quality_detection') {
+      setShowAirQualityDetection(!showAirQualityDetection);
+      return;
+    }
+
     setIsAnalyzing(true);
     
     try {
@@ -101,6 +118,102 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
       setIsAnalyzing(false);
     }
   };
+
+  const handleThermalDetectionUpdate = (results) => {
+    // Pass thermal detection results to parent component
+    onAnalyze && onAnalyze({
+      workflow: 'waste',
+      action: 'thermal_detection_results',
+      results: results,
+      location: { lat: analysisParams.lat, lon: analysisParams.lon }
+    });
+  };
+
+  const handleAirQualityDetectionUpdate = (results) => {
+    // Pass air quality detection results to parent component
+    onAnalyze && onAnalyze({
+      workflow: 'airquality',
+      action: 'air_quality_results',
+      results: results,
+      location: { lat: analysisParams.lat, lon: analysisParams.lon }
+    });
+  };
+
+  // If thermal detection is active in waste management workflow
+  if (activeWorkflow === 'waste' && showThermalDetection) {
+    return (
+      <div className="space-y-6">
+        {/* Header with back button */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+                <FireIcon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Thermal Spot Detection
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  NASA FIRMS + Landsat Integration
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowThermalDetection(false)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              ← Back
+            </button>
+          </div>
+        </div>
+
+        {/* Thermal Detection Component */}
+        <ThermalSpotDetection
+          location={{ lat: analysisParams.lat, lon: analysisParams.lon }}
+          onDetectionUpdate={handleThermalDetectionUpdate}
+        />
+      </div>
+    );
+  }
+
+  // If air quality detection is active in air quality workflow
+  if (activeWorkflow === 'airquality' && showAirQualityDetection) {
+    return (
+      <div className="space-y-6">
+        {/* Header with back button */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                <CloudIcon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Air Quality Analysis
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  NASA GEOS-CF + MERRA-2 Integration
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowAirQualityDetection(false)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              ← Back
+            </button>
+          </div>
+        </div>
+
+        {/* Air Quality Detection Component */}
+        <AirQualityDetection
+          location={{ lat: analysisParams.lat, lon: analysisParams.lon }}
+          onDetectionUpdate={handleAirQualityDetectionUpdate}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
@@ -208,30 +321,35 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
         <div className="space-y-2">
           {currentConfig.actions.map((action) => {
             const Icon = action.icon;
+            const isSpecial = action.special;
+            const isThermalDetection = action.id === 'thermal_detection';
+            const isAirQualityDetection = action.id === 'air_quality_detection';
+            
             return (
-              <motion.button
+              <button
                 key={action.id}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
                 onClick={() => handleAction(action.id)}
-                disabled={isAnalyzing}
-                className={`w-full flex items-center space-x-3 px-3 py-2 text-sm text-left rounded-lg border transition-colors ${
-                  isAnalyzing
-                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 border-gray-200 dark:border-gray-600 cursor-not-allowed'
+                disabled={isAnalyzing && !isThermalDetection && !isAirQualityDetection}
+                className={`w-full flex items-center space-x-3 px-3 py-2 text-sm text-left rounded-lg border transition-all duration-200 hover:scale-105 active:scale-95 ${
+                  isSpecial
+                    ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/30'
+                    : isAnalyzing && !isThermalDetection && !isAirQualityDetection
+                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 border-gray-200 dark:border-gray-600 cursor-not-allowed hover:scale-100'
                     : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
                 }`}
               >
-                {isAnalyzing ? (
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full"
-                  />
+                {isAnalyzing && !isThermalDetection && !isAirQualityDetection ? (
+                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Icon className="w-4 h-4" />
                 )}
                 <span>{action.label}</span>
-              </motion.button>
+                {isSpecial && (
+                  <span className="ml-auto text-xs bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 px-2 py-1 rounded-full">
+                    NASA
+                  </span>
+                )}
+              </button>
             );
           })}
         </div>

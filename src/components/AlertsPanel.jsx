@@ -1,6 +1,5 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ExclamationTriangleIcon,
   InformationCircleIcon,
@@ -91,31 +90,22 @@ export default function AlertsPanel({ alerts }) {
 
       {/* Alerts List */}
       <div className="max-h-96 overflow-y-auto">
-        <AnimatePresence>
-          {alerts.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="p-6 text-center"
-            >
-              <InformationCircleIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-gray-400 text-sm">
-                No active alerts
-              </p>
-            </motion.div>
-          ) : (
-            alerts.map((alert, index) => {
-              const Icon = getSeverityIcon(alert.severity);
-              const colors = getSeverityColors(alert.severity);
-              
-              return (
-                <motion.div
-                  key={alert.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ delay: index * 0.1 }}
-                  className={`p-4 border-b border-gray-200 dark:border-gray-700 hover:${colors.bg} transition-colors`}
+        {alerts.length === 0 ? (
+          <div className="p-6 text-center">
+            <InformationCircleIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              No active alerts
+            </p>
+          </div>
+        ) : (
+          alerts.map((alert, index) => {
+            const Icon = getSeverityIcon(alert.severity);
+            const colors = getSeverityColors(alert.severity);
+            
+            return (
+              <div
+                key={alert.id}
+                className={`p-4 border-b border-gray-200 dark:border-gray-700 hover:${colors.bg} transition-colors`}
                 >
                   <div className="flex items-start space-x-3">
                     {/* Alert Icon */}
@@ -165,11 +155,10 @@ export default function AlertsPanel({ alerts }) {
                       </div>
                     </div>
                   </div>
-                </motion.div>
-              );
-            })
-          )}
-        </AnimatePresence>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Footer */}

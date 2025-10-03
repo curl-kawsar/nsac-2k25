@@ -1,13 +1,45 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/lib/database';
-import { IllegalDump, EnvironmentalData } from '@/models/WasteManagement';
-import { Alert } from '@/models/User';
 import nasaApi from '@/services/nasaApi';
+
+// Mock data for illegal dumps (simulated detections)
+const mockDumps = [
+  {
+    id: 'dump_001',
+    location: { lat: 40.7589, lng: -73.9851 },
+    temperature: 45.2,
+    confidence: 0.89,
+    populationDensity: 1200,
+    environmentalRisk: 'high',
+    status: 'detected',
+    detectionDate: new Date('2024-10-01'),
+    source: 'Landsat-8 TIRS'
+  },
+  {
+    id: 'dump_002',
+    location: { lat: 40.7505, lng: -73.9934 },
+    temperature: 38.5,
+    confidence: 0.76,
+    populationDensity: 890,
+    environmentalRisk: 'medium',
+    status: 'verified',
+    detectionDate: new Date('2024-09-28'),
+    source: 'Landsat-9 TIRS'
+  },
+  {
+    id: 'dump_003',
+    location: { lat: 40.7614, lng: -73.9776 },
+    temperature: 52.1,
+    confidence: 0.94,
+    populationDensity: 1450,
+    environmentalRisk: 'critical',
+    status: 'cleanup_scheduled',
+    detectionDate: new Date('2024-10-02'),
+    source: 'Landsat-8 TIRS'
+  }
+];
 
 export async function POST(request) {
   try {
-    await connectDB();
-    
     const { lat, lon, radius = 5 } = await request.json();
     
     if (!lat || !lon) {
@@ -17,90 +49,65 @@ export async function POST(request) {
       );
     }
 
-    // Detect thermal anomalies using NASA Landsat data
-    const anomalies = await nasaApi.detectThermalAnomalies(lat, lon, radius);
-    
-    // Get population density data for correlation
-    const populationData = await nasaApi.getSEDACPopulation(lat, lon);
-    
-    // Process and save detected dumps
-    const detectedDumps = [];
-    
-    for (const anomaly of anomalies) {
-      // Check if this location was already detected recently
-      const existingDump = await IllegalDump.findOne({
-        location: {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: anomaly.location
-            },
-            $maxDistance: 100 // 100 meters
-          }
-        },
-        detectionDate: {
-          $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
-        }
-      });
+    console.log(`Detecting illegal dumps using NASA data for location: ${lat}, ${lon}`);
 
-      if (!existingDump) {
-        // Determine environmental risk level
-        const environmentalRisk = this.assessEnvironmentalRisk(
+    try {
+      // Use real NASA data for thermal anomaly detection
+      const anomalies = await nasaApi.detectThermalAnomalies(lat, lon, radius);
+      const populationData = await nasaApi.getSEDACPopulation(lat, lon);
+      
+      // Process detected anomalies into dump data
+      const detectedDumps = anomalies.map((anomaly, index) => ({
+        id: `dump_nasa_${Date.now()}_${index}`,
+        location: { lat: anomaly.location[1], lng: anomaly.location[0] },
+        temperature: anomaly.temperature,
+        confidence: anomaly.confidence,
+        populationDensity: populationData.density,
+        environmentalRisk: assessEnvironmentalRisk(
           anomaly.temperature,
           populationData.density,
           anomaly.confidence
-        );
+        ),
+        status: 'detected',
+        detectionDate: anomaly.detectionDate,
+        source: anomaly.source,
+        metadata: anomaly.metadata || {},
+        dataSource: 'NASA_REAL'
+      }));
 
-        const newDump = new IllegalDump({
-          location: {
-            type: 'Point',
-            coordinates: anomaly.location
-          },
-          temperature: anomaly.temperature,
-          confidence: anomaly.confidence,
-          populationDensity: populationData.density,
-          environmentalRisk: environmentalRisk,
-          status: 'detected'
-        });
+      console.log(`NASA API detected ${detectedDumps.length} thermal anomalies`);
 
-        await newDump.save();
-        detectedDumps.push(newDump);
+      return NextResponse.json({
+        success: true,
+        detectedDumps: detectedDumps.length,
+        dumps: detectedDumps,
+        searchArea: { lat, lon, radius },
+        populationData: {
+          density: populationData.density,
+          source: populationData.source,
+          confidence: populationData.metadata?.confidence
+        },
+        apiStatus: 'NASA_API_ACTIVE'
+      });
 
-        // Create alert if high risk
-        if (environmentalRisk === 'high' || environmentalRisk === 'critical') {
-          const alert = new Alert({
-            title: `Illegal Dump Detected - ${environmentalRisk.toUpperCase()} Risk`,
-            message: `Thermal anomaly detected at ${anomaly.temperature.toFixed(1)}°C. Population density: ${populationData.density} people/km²`,
-            type: 'waste_management',
-            severity: environmentalRisk === 'critical' ? 'critical' : 'warning',
-            location: {
-              type: 'Point',
-              coordinates: anomaly.location
-            },
-            data: {
-              temperature: anomaly.temperature,
-              confidence: anomaly.confidence,
-              populationDensity: populationData.density,
-              dumpId: newDump._id
-            },
-            source: {
-              system: 'thermal_detection',
-              dataSource: 'Landsat-8/9 TIRS',
-              confidence: anomaly.confidence
-            }
-          });
+    } catch (nasaError) {
+      console.error('NASA API error, using fallback data:', nasaError.message);
+      
+      // Fallback to mock data if NASA API fails
+      const nearbyMockDumps = mockDumps.filter(dump => {
+        const distance = calculateDistance(lat, lon, dump.location.lat, dump.location.lng);
+        return distance <= radius;
+      });
 
-          await alert.save();
-        }
-      }
+      return NextResponse.json({
+        success: true,
+        detectedDumps: nearbyMockDumps.length,
+        dumps: nearbyMockDumps,
+        searchArea: { lat, lon, radius },
+        apiStatus: 'FALLBACK_DATA',
+        warning: 'NASA API unavailable, using simulated data'
+      });
     }
-
-    return NextResponse.json({
-      success: true,
-      detectedDumps: detectedDumps.length,
-      dumps: detectedDumps,
-      searchArea: { lat, lon, radius }
-    });
 
   } catch (error) {
     console.error('Error detecting illegal dumps:', error);
@@ -113,8 +120,6 @@ export async function POST(request) {
 
 export async function GET(request) {
   try {
-    await connectDB();
-    
     const { searchParams } = new URL(request.url);
     const lat = parseFloat(searchParams.get('lat'));
     const lon = parseFloat(searchParams.get('lon'));
@@ -128,31 +133,24 @@ export async function GET(request) {
       );
     }
 
-    // Build query
-    const query = {
-      location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [lon, lat]
-          },
-          $maxDistance: radius * 1000 // Convert km to meters
-        }
-      }
-    };
+    // Filter mock dumps based on location and radius
+    let filteredDumps = mockDumps.filter(dump => {
+      const distance = calculateDistance(lat, lon, dump.location.lat, dump.location.lng);
+      return distance <= radius;
+    });
 
+    // Filter by status if provided
     if (status) {
-      query.status = status;
+      filteredDumps = filteredDumps.filter(dump => dump.status === status);
     }
 
-    const dumps = await IllegalDump.find(query)
-      .sort({ detectionDate: -1 })
-      .limit(100);
+    // Sort by detection date (newest first)
+    filteredDumps.sort((a, b) => new Date(b.detectionDate) - new Date(a.detectionDate));
 
     return NextResponse.json({
       success: true,
-      dumps: dumps,
-      count: dumps.length
+      dumps: filteredDumps.slice(0, 100), // Limit to 100 results
+      count: filteredDumps.length
     });
 
   } catch (error) {
@@ -183,4 +181,21 @@ function assessEnvironmentalRisk(temperature, populationDensity, confidence) {
   if (riskScore >= 3) return 'high';
   if (riskScore >= 2) return 'medium';
   return 'low';
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the Earth in kilometers
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const d = R * c; // Distance in kilometers
+  return d;
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI/180);
 }
