@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { optimizationService } from '@/services/optimizationService';
+import optimizationService from '@/services/optimizationService';
 
 // Mock waste collection routes and vehicles
 const mockRoutes = [
