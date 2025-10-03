@@ -15,12 +15,14 @@ export default function LeafletMap({
   activeWorkflow, 
   alerts, 
   thermalDetectionResults,
-  airQualityResults, 
+  airQualityResults,
+  healthcareResults, 
   onLocationSelect 
 }) {
   const [isClient, setIsClient] = useState(false);
   const [thermalSpots, setThermalSpots] = useState([]);
   const [airQualityStations, setAirQualityStations] = useState([]);
+  const [healthcareFacilities, setHealthcareFacilities] = useState([]);
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -36,6 +38,42 @@ export default function LeafletMap({
   const memoizedAirQualityStations = useMemo(() => {
     return airQualityResults?.stations || [];
   }, [airQualityResults?.stations]);
+
+  // Memoize healthcare facilities for performance
+  const memoizedHealthcareFacilities = useMemo(() => {
+    const facilities = [];
+    
+    // Add existing facilities
+    if (healthcareResults?.existingFacilities?.facilities) {
+      healthcareResults.existingFacilities.facilities.forEach(facility => {
+        facilities.push({
+          ...facility,
+          type: 'existing',
+          facilityType: facility.type || 'healthcare'
+        });
+      });
+    }
+    
+    // Add recommended new facilities
+    if (healthcareResults?.recommendations?.newFacilities) {
+      healthcareResults.recommendations.newFacilities.forEach(facility => {
+        facilities.push({
+          id: `recommended_${facility.rank}`,
+          name: `Recommended ${facility.recommendedType || 'Healthcare'} Facility`,
+          lat: facility.coordinates?.lat,
+          lon: facility.coordinates?.lon,
+          type: 'recommended',
+          facilityType: facility.recommendedType || 'healthcare',
+          rank: facility.rank,
+          populationServed: facility.expectedImpact?.populationServed,
+          priority: facility.expectedImpact?.priorityScore,
+          estimatedCost: facility.implementation?.estimatedCost
+        });
+      });
+    }
+    
+    return facilities.filter(f => f.lat && f.lon);
+  }, [healthcareResults]);
 
   // Optimized auto-fit function
   const autoFitBounds = useCallback((spots) => {
@@ -79,6 +117,14 @@ export default function LeafletMap({
     }
   }, [memoizedAirQualityStations, autoFitBounds]);
 
+  useEffect(() => {
+    if (memoizedHealthcareFacilities.length > 0) {
+      setHealthcareFacilities(memoizedHealthcareFacilities);
+      console.log(`Leaflet map: ${memoizedHealthcareFacilities.length} healthcare facilities loaded`);
+      autoFitBounds(memoizedHealthcareFacilities);
+    }
+  }, [memoizedHealthcareFacilities, autoFitBounds]);
+
   // Custom icon for thermal spots
   const createThermalIcon = (temperature) => {
     if (typeof window === 'undefined') return null;
@@ -114,11 +160,11 @@ export default function LeafletMap({
     
     const L = require('leaflet');
     const color = aqi <= 50 ? '#16a34a' :   // Good - Green
-                  aqi <= 100 ? '#eab308' :  // Moderate - Yellow
-                  aqi <= 150 ? '#ea580c' :  // Unhealthy for Sensitive - Orange
-                  aqi <= 200 ? '#dc2626' :  // Unhealthy - Red
-                  aqi <= 300 ? '#7c3aed' :  // Very Unhealthy - Purple
-                  '#991b1b';                // Hazardous - Dark Red
+                 aqi <= 100 ? '#eab308' :  // Moderate - Yellow
+                 aqi <= 150 ? '#ea580c' :  // Unhealthy for Sensitive - Orange
+                 aqi <= 200 ? '#dc2626' :  // Unhealthy - Red
+                 aqi <= 300 ? '#7c3aed' :  // Very Unhealthy - Purple
+                 '#991b1b';                // Hazardous - Dark Red
     
     return L.divIcon({
       html: `<div style="
@@ -138,6 +184,55 @@ export default function LeafletMap({
       className: 'air-quality-marker',
       iconSize: [26, 26],
       iconAnchor: [13, 13]
+    });
+  };
+
+  // Create healthcare facility icon
+  const createHealthcareIcon = (facility) => {
+    if (typeof window === 'undefined') return null;
+    
+    const L = require('leaflet');
+    const isRecommended = facility.type === 'recommended';
+    const facilityType = facility.facilityType || 'healthcare';
+    
+    // Colors based on facility type and status
+    const colors = {
+      hospital: isRecommended ? '#dc2626' : '#7c2d12',
+      clinic: isRecommended ? '#2563eb' : '#1e3a8a',
+      pharmacy: isRecommended ? '#16a34a' : '#14532d',
+      emergency: isRecommended ? '#ea580c' : '#9a3412',
+      healthcare: isRecommended ? '#7c3aed' : '#581c87'
+    };
+    
+    const color = colors[facilityType] || colors.healthcare;
+    
+    // Icons based on facility type
+    const icons = {
+      hospital: '🏥',
+      clinic: '🏢',
+      pharmacy: '💊',
+      emergency: '🚑',
+      healthcare: '⚕️'
+    };
+    
+    const icon = icons[facilityType] || icons.healthcare;
+    
+    return L.divIcon({
+      html: `<div style="
+        background: ${color};
+        width: ${isRecommended ? '28px' : '24px'};
+        height: ${isRecommended ? '28px' : '24px'};
+        border-radius: 50%;
+        border: ${isRecommended ? '3px' : '2px'} solid ${isRecommended ? '#fbbf24' : 'white'};
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: ${isRecommended ? '14px' : '12px'};
+      ">${icon}</div>`,
+      className: `healthcare-facility-marker ${isRecommended ? 'recommended' : 'existing'}`,
+      iconSize: isRecommended ? [28, 28] : [24, 24],
+      iconAnchor: isRecommended ? [14, 14] : [12, 12]
     });
   };
 
@@ -296,6 +391,82 @@ export default function LeafletMap({
                     <div style={{ fontSize: '10px', color: '#888', marginTop: '2px' }}>
                       {station.name || 'Air Quality Monitor'}
                     </div>
+                  </div>
+                </Popup>
+              </CircleMarker>
+            );
+          })}
+
+          {/* Healthcare Facilities */}
+          {healthcareFacilities.map((facility, index) => {
+            const isRecommended = facility.type === 'recommended';
+            const facilityType = facility.facilityType || 'healthcare';
+            
+            // Colors based on facility type and status
+            const colors = {
+              hospital: isRecommended ? '#dc2626' : '#7c2d12',
+              clinic: isRecommended ? '#2563eb' : '#1e3a8a',
+              pharmacy: isRecommended ? '#16a34a' : '#14532d',
+              emergency: isRecommended ? '#ea580c' : '#9a3412',
+              healthcare: isRecommended ? '#7c3aed' : '#581c87'
+            };
+            
+            const color = colors[facilityType] || colors.healthcare;
+            const radius = isRecommended ? 12 : 8;
+            
+            return (
+              <CircleMarker
+                key={`healthcare-${index}-${facility.lat}-${facility.lon}`}
+                center={[facility.lat, facility.lon]}
+                radius={radius}
+                pathOptions={{
+                  color: color,
+                  fillColor: color,
+                  fillOpacity: isRecommended ? 0.9 : 0.7,
+                  weight: isRecommended ? 3 : 2,
+                  opacity: 1
+                }}
+              >
+                <Popup>
+                  <div style={{ padding: '8px', textAlign: 'center', minWidth: '240px' }}>
+                    <h3 style={{ margin: '0 0 5px 0', color: color, fontSize: '14px' }}>
+                      {isRecommended ? '⭐ Recommended' : '🏥 Existing'} Healthcare Facility
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', fontSize: '12px', marginBottom: '8px' }}>
+                      <div><strong>Type:</strong> {facilityType}</div>
+                      <div><strong>Status:</strong> {isRecommended ? 'Recommended' : 'Existing'}</div>
+                    </div>
+                    
+                    {isRecommended && (
+                      <div style={{ marginBottom: '8px', fontSize: '11px', backgroundColor: '#fef3c7', padding: '4px', borderRadius: '4px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
+                          <div><strong>Rank:</strong> #{facility.rank}</div>
+                          <div><strong>Priority:</strong> {Math.round(facility.priority || 0)}</div>
+                        </div>
+                        {facility.populationServed && (
+                          <div style={{ marginTop: '3px' }}>
+                            <strong>Serves:</strong> {facility.populationServed.toLocaleString()} people
+                          </div>
+                        )}
+                        {facility.estimatedCost && (
+                          <div style={{ marginTop: '3px' }}>
+                            <strong>Est. Cost:</strong> ${facility.estimatedCost.toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div style={{ fontSize: '10px', color: '#666', marginTop: '5px' }}>
+                      📍 {facility.lat.toFixed(4)}, {facility.lon.toFixed(4)}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#888', marginTop: '2px' }}>
+                      {facility.name || `${facilityType} Facility`}
+                    </div>
+                    {facility.source && (
+                      <div style={{ fontSize: '9px', color: '#999', marginTop: '2px' }}>
+                        Source: {facility.source}
+                      </div>
+                    )}
                   </div>
                 </Popup>
               </CircleMarker>

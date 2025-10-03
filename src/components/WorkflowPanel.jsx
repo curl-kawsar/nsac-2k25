@@ -9,10 +9,12 @@ import {
   ClockIcon,
   CpuChipIcon,
   FireIcon,
-  CloudIcon
+  CloudIcon,
+  HeartIcon
 } from '@heroicons/react/24/outline';
 import ThermalSpotDetection from './ThermalSpotDetection';
 import AirQualityDetection from './AirQualityDetection';
+import HealthcareAccessAnalysis from './HealthcareAccessAnalysis';
 
 export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze }) {
   const [analysisParams, setAnalysisParams] = useState({
@@ -23,6 +25,7 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showThermalDetection, setShowThermalDetection] = useState(false);
   const [showAirQualityDetection, setShowAirQualityDetection] = useState(false);
+  const [showHealthcareAnalysis, setShowHealthcareAnalysis] = useState(false);
 
   const workflowConfigs = {
     overview: {
@@ -51,7 +54,8 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
     healthcare: {
       title: 'Healthcare Access Analysis',
       actions: [
-        { id: 'analyze_access', label: 'Analyze Access', icon: PlayIcon },
+        { id: 'healthcare_analysis', label: 'Healthcare Access Analysis', icon: HeartIcon, special: true },
+        { id: 'analyze_access', label: 'Analyze Current Access', icon: PlayIcon },
         { id: 'optimize_placement', label: 'Optimize Placement', icon: Cog6ToothIcon },
         { id: 'emergency_prep', label: 'Emergency Planning', icon: ClockIcon }
       ],
@@ -97,6 +101,11 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
       return;
     }
 
+    if (actionId === 'healthcare_analysis') {
+      setShowHealthcareAnalysis(!showHealthcareAnalysis);
+      return;
+    }
+
     setIsAnalyzing(true);
     
     try {
@@ -134,6 +143,16 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
     onAnalyze && onAnalyze({
       workflow: 'airquality',
       action: 'air_quality_results',
+      results: results,
+      location: { lat: analysisParams.lat, lon: analysisParams.lon }
+    });
+  };
+
+  const handleHealthcareAnalysisUpdate = (results) => {
+    // Pass healthcare analysis results to parent component
+    onAnalyze && onAnalyze({
+      workflow: 'healthcare',
+      action: 'healthcare_analysis_results',
       results: results,
       location: { lat: analysisParams.lat, lon: analysisParams.lon }
     });
@@ -210,6 +229,44 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
         <AirQualityDetection
           location={{ lat: analysisParams.lat, lon: analysisParams.lon }}
           onDetectionUpdate={handleAirQualityDetectionUpdate}
+        />
+      </div>
+    );
+  }
+
+  // If healthcare analysis is active in healthcare workflow
+  if (activeWorkflow === 'healthcare' && showHealthcareAnalysis) {
+    return (
+      <div className="space-y-6">
+        {/* Header with back button */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+                <HeartIcon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Healthcare Access Analysis
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  NASA SEDAC + OpenStreetMap + MCLP Optimization
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowHealthcareAnalysis(false)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              ← Back
+            </button>
+          </div>
+        </div>
+
+        {/* Healthcare Access Analysis Component */}
+        <HealthcareAccessAnalysis
+          location={{ lat: analysisParams.lat, lon: analysisParams.lon }}
+          onAnalysisUpdate={handleHealthcareAnalysisUpdate}
         />
       </div>
     );
@@ -324,21 +381,22 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
             const isSpecial = action.special;
             const isThermalDetection = action.id === 'thermal_detection';
             const isAirQualityDetection = action.id === 'air_quality_detection';
+            const isHealthcareAnalysis = action.id === 'healthcare_analysis';
             
             return (
               <button
                 key={action.id}
                 onClick={() => handleAction(action.id)}
-                disabled={isAnalyzing && !isThermalDetection && !isAirQualityDetection}
+                disabled={isAnalyzing && !isThermalDetection && !isAirQualityDetection && !isHealthcareAnalysis}
                 className={`w-full flex items-center space-x-3 px-3 py-2 text-sm text-left rounded-lg border transition-all duration-200 hover:scale-105 active:scale-95 ${
                   isSpecial
                     ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/30'
-                    : isAnalyzing && !isThermalDetection && !isAirQualityDetection
+                    : isAnalyzing && !isThermalDetection && !isAirQualityDetection && !isHealthcareAnalysis
                     ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 border-gray-200 dark:border-gray-600 cursor-not-allowed hover:scale-100'
                     : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
                 }`}
               >
-                {isAnalyzing && !isThermalDetection && !isAirQualityDetection ? (
+                {isAnalyzing && !isThermalDetection && !isAirQualityDetection && !isHealthcareAnalysis ? (
                   <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Icon className="w-4 h-4" />

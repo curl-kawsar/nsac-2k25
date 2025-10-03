@@ -33,6 +33,7 @@ export default function CityWISEDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [thermalDetectionResults, setThermalDetectionResults] = useState(null);
   const [airQualityResults, setAirQualityResults] = useState(null);
+  const [healthcareResults, setHealthcareResults] = useState(null);
   const [dashboardData, setDashboardData] = useState({
     alerts: [],
     metrics: {},
@@ -402,6 +403,43 @@ export default function CityWISEDashboard() {
                 </CardContent>
               </Card>
             )}
+
+            {healthcareResults && (
+              <Card className="border-red-200 bg-red-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <HeartIcon className="h-4 w-4 text-red-600" />
+                    Healthcare Analysis
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">New Facilities</span>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      {healthcareResults.recommendations?.newFacilities?.length || 0}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Coverage Increase</span>
+                    <Badge variant="secondary">
+                      +{Math.round(healthcareResults.coverageImprovements?.improvement?.coverageIncrease || 0)}%
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">People Served</span>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                      {(healthcareResults.coverageImprovements?.improvement?.additionalPopulationCovered || 0).toLocaleString()}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Analysis Area</span>
+                    <Badge variant="outline" className="bg-red-50 text-red-700">
+                      {healthcareResults.analysis?.city || 'Analysis Area'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Center Panel - Interactive Map */}
@@ -423,6 +461,7 @@ export default function CityWISEDashboard() {
                     alerts={dashboardData.alerts}
                     thermalDetectionResults={thermalDetectionResults}
                     airQualityResults={airQualityResults}
+                    healthcareResults={healthcareResults}
                     onLocationSelect={(coords) => console.log('Location selected:', coords)}
                   />
                 </div>
@@ -453,9 +492,13 @@ export default function CityWISEDashboard() {
                       setThermalDetectionResults(params.results);
                     }
                     // Handle air quality detection results
-                    if (params.action === 'air_quality_results') {
-                      setAirQualityResults(params.results);
-                    }
+    if (params.action === 'air_quality_results') {
+      setAirQualityResults(params.results);
+    }
+
+    if (params.action === 'healthcare_analysis_results') {
+      setHealthcareResults(params.results);
+    }
                   }}
                 />
               </CardContent>
