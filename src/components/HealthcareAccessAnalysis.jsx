@@ -104,6 +104,105 @@ export default function HealthcareAccessAnalysis({ location, onAnalysisUpdate })
     }
   };
 
+  // Get ML-enhanced healthcare priority predictions
+  const getMLHealthcarePriorityPredictions = async (analysisData, params) => {
+    try {
+      const predictions = [];
+      
+      // Generate predictions for each recommended facility location
+      if (analysisData.recommendations && analysisData.recommendations.length > 0) {
+        for (const recommendation of analysisData.recommendations.slice(0, 3)) { // Limit to top 3
+          // Prepare features for ML model
+          const features = {
+            population_density: analysisData.populationData?.populationDensity?.average || 1000,
+            existing_facilities: analysisData.existingFacilities?.length || 0,
+            access_time: recommendation.averageAccessTime || 30,
+            demographic_risk: calculateDemographicRisk(analysisData.populationData),
+            environmental_risk: calculateEnvironmentalRisk(recommendation.location),
+            location: {
+              lat: recommendation.location.lat,
+              lng: recommendation.location.lon,
+              name: recommendation.facilityType || 'Healthcare Facility'
+            },
+            area_info: {
+              urban_type: params.includeRuralAreas ? 'mixed' : 'urban',
+              income_level: 'medium', // Could be enhanced with real data
+              existing_infrastructure: analysisData.existingFacilities?.length > 2 ? 'good' : 'limited'
+            }
+          };
+
+          const response = await fetch('/api/ml/healthcare-priority-predict', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(features)
+          });
+
+          if (response.ok) {
+            const mlResult = await response.json();
+            if (mlResult.success) {
+              predictions.push({
+                facility_id: recommendation.id,
+                location: recommendation.location,
+                ml_prediction: mlResult.prediction,
+                facility_recommendations: mlResult.facility_recommendations,
+                implementation_plan: mlResult.implementation_plan,
+                cost_benefit: mlResult.cost_benefit_analysis
+              });
+            }
+          }
+        }
+      }
+
+      return predictions;
+    } catch (error) {
+      console.error('ML Healthcare Priority Prediction error:', error);
+      throw error;
+    }
+  };
+
+  // Calculate demographic risk score (0-1)
+  const calculateDemographicRisk = (populationData) => {
+    if (!populationData) return 0.5;
+    
+    let riskScore = 0;
+    
+    // Higher population density increases risk
+    const density = populationData.populationDensity?.average || 1000;
+    riskScore += Math.min(density / 10000, 0.3);
+    
+    // Add base demographic risk
+    riskScore += 0.4;
+    
+    // Random variation for vulnerable populations (would be real data in production)
+    riskScore += Math.random() * 0.3;
+    
+    return Math.min(1, riskScore);
+  };
+
+  // Calculate environmental risk score (0-1)
+  const calculateEnvironmentalRisk = (location) => {
+    let riskScore = 0;
+    
+    // Base environmental risk
+    riskScore += 0.3;
+    
+    // Location-based risk (simplified)
+    const lat = location.lat;
+    const lon = location.lon;
+    
+    // Urban areas typically have higher environmental risk
+    if (Math.abs(lat) < 60 && Math.abs(lon) < 180) {
+      riskScore += 0.2;
+    }
+    
+    // Random variation for pollution, climate factors (would be real data in production)
+    riskScore += Math.random() * 0.5;
+    
+    return Math.min(1, riskScore);
+  };
+
   // Run healthcare access analysis
   const runHealthcareAnalysis = async () => {
     setIsAnalyzing(true);
@@ -145,6 +244,17 @@ export default function HealthcareAccessAnalysis({ location, onAnalysisUpdate })
 
       const data = await response.json();
 
+      // Enhanced analysis with ML priority prediction
+      let mlPriorityPredictions = [];
+      if (data.success && data.recommendations) {
+        try {
+          mlPriorityPredictions = await getMLHealthcarePriorityPredictions(data, analysisParams);
+          console.log('ML Healthcare Priority Predictions:', mlPriorityPredictions);
+        } catch (mlError) {
+          console.warn('ML priority prediction failed:', mlError.message);
+        }
+      }
+
       if (data.success) {
         const results = {
           id: `healthcare_${Date.now()}`,
@@ -152,6 +262,8 @@ export default function HealthcareAccessAnalysis({ location, onAnalysisUpdate })
           location: `${analysisParams.coordinates.lat.toFixed(4)}, ${analysisParams.coordinates.lon.toFixed(4)}`,
           address: analysisParams.address || 'Coordinates',
           ...data,
+          ml_priority_predictions: mlPriorityPredictions,
+          ml_enhanced: mlPriorityPredictions.length > 0,
           analysisParams: { ...analysisParams }
         };
 

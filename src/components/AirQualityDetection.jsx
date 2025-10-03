@@ -148,6 +148,52 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
     }
   };
 
+  // Get ML-enhanced air quality prediction
+  const getMLAirQualityPrediction = async (metrics, location) => {
+    try {
+      // Prepare features for ML model
+      const features = {
+        pm25: metrics.pm25 || 25,
+        no2: metrics.no2 || 40,
+        so2: metrics.so2 || 15,
+        o3: metrics.o3 || 65,
+        co: metrics.co || 1.2,
+        temperature: 22 + (Math.random() - 0.5) * 10, // Simulated temperature
+        humidity: 60 + (Math.random() - 0.5) * 20, // Simulated humidity
+        wind_speed: 3 + Math.random() * 5, // Simulated wind speed
+        pressure: 1013 + (Math.random() - 0.5) * 20, // Simulated pressure
+        location: {
+          lat: location.lat,
+          lng: location.lng,
+          name: location.address || `${location.lat}, ${location.lng}`
+        }
+      };
+
+      const response = await fetch('/api/ml/air-quality-predict', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(features)
+      });
+
+      if (!response.ok) {
+        throw new Error(`ML API error: ${response.status}`);
+      }
+
+      const mlResult = await response.json();
+      
+      if (!mlResult.success) {
+        throw new Error(mlResult.message || 'ML prediction failed');
+      }
+
+      return mlResult;
+    } catch (error) {
+      console.error('ML Air Quality Prediction error:', error);
+      throw error;
+    }
+  };
+
   const runAirQualityDetection = async () => {
     setIsDetecting(true);
     
@@ -182,18 +228,27 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
       const data = await response.json();
       console.log('Air quality detection results:', data);
 
+      // Enhanced prediction using ML model
+      let mlPrediction = null;
+      try {
+        mlPrediction = await getMLAirQualityPrediction(data.metrics, locationInput);
+        console.log('ML Air Quality Prediction:', mlPrediction);
+      } catch (mlError) {
+        console.warn('ML prediction failed, using standard calculation:', mlError.message);
+      }
+
       // Generate stations
       const stations = generateAirQualityStations(data);
       console.log('Generated air quality stations:', stations);
 
-      // Process and format results
+      // Process and format results with ML enhancement
       const processedResults = {
         success: true,
         city: data.city,
         date: data.date,
-        aqi: data.aqi,
+        aqi: mlPrediction?.prediction?.aqi || data.aqi,
         driver: data.driver,
-        category: data.category,
+        category: mlPrediction?.prediction?.category || data.category,
         metrics: data.metrics,
         searchArea: {
           lat: locationInput.lat,
@@ -201,7 +256,13 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
           bbox: data.bbox
         },
         stations: stations,
-        meta: data.meta,
+        meta: {
+          ...data.meta,
+          ml_enhanced: !!mlPrediction,
+          ml_confidence: mlPrediction?.prediction?.confidence || null,
+          ml_model_type: mlPrediction?.model_info?.type || null
+        },
+        ml_prediction: mlPrediction || null,
         detectionTime: new Date(),
         filters: { ...filters }
       };

@@ -12,6 +12,7 @@ import {
   XMarkIcon,
   InformationCircleIcon,
   CheckCircleIcon,
+  Cog6ToothIcon,
   ExclamationCircleIcon,
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon
@@ -32,6 +33,9 @@ export default function ThermalSpotDetection({ location, onDetectionUpdate }) {
   const [detectionResults, setDetectionResults] = useState(null);
   const [selectedAnomaly, setSelectedAnomaly] = useState(null);
   const [detectionHistory, setDetectionHistory] = useState([]);
+  const [aiRecommendations, setAiRecommendations] = useState(null);
+  const [isGettingAIAdvice, setIsGettingAIAdvice] = useState(false);
+  const [showAIRecommendations, setShowAIRecommendations] = useState(false);
   const [locationInput, setLocationInput] = useState({
     lat: location?.lat || 40.7128,
     lng: location?.lon || -74.0060,
@@ -159,6 +163,103 @@ export default function ThermalSpotDetection({ location, onDetectionUpdate }) {
       console.error('Geocoding error:', error);
       alert('Could not find the specified location. Please try a different address.');
       return null;
+    }
+  };
+
+  // Get AI recommendations for detected waste spots
+  const getAIRecommendations = async (detectedSpots) => {
+    if (!detectedSpots || detectedSpots.length === 0) {
+      alert('No waste spots detected to analyze. Please run thermal detection first.');
+      return;
+    }
+
+    setIsGettingAIAdvice(true);
+    
+    try {
+      console.log('Getting AI recommendations for waste spots...');
+      
+      // Prepare waste spots data for AI analysis
+      const wasteSpots = detectedSpots.map(spot => ({
+        location: {
+          lat: spot.location.lat,
+          lng: spot.location.lng
+        },
+        temperature: spot.temperature,
+        confidence: spot.confidence,
+        type: spot.type || 'thermal_anomaly',
+        nearbyPopulation: spot.nearbyPopulation || Math.floor(Math.random() * 10000) + 1000,
+        detectionTime: spot.detectionTime || new Date().toISOString()
+      }));
+
+      const requestBody = {
+        waste_spots: wasteSpots,
+        location_info: {
+          city: locationInput.address || 'Unknown Location',
+          lat: locationInput.lat,
+          lon: locationInput.lng,
+          country: 'Unknown'
+        },
+        analysis_options: {
+          focus_area: 'comprehensive',
+          budget_constraint: 'medium',
+          urgency_level: detectedSpots.length > 10 ? 'high' : 'medium',
+          searchRadius: filters.radius
+        },
+        request_metadata: {
+          detection_filters: filters,
+          total_spots: detectedSpots.length,
+          high_temp_spots: detectedSpots.filter(s => s.temperature > 45).length
+        }
+      };
+
+      console.log('AI Analysis Request:', requestBody);
+
+      const response = await fetch('/api/waste-management/ai-recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const aiData = await response.json();
+      console.log('AI Recommendations received:', aiData);
+
+      if (aiData.success) {
+        setAiRecommendations(aiData);
+        setShowAIRecommendations(true);
+        
+        // Add AI analysis to history
+        const aiHistoryEntry = {
+          id: Date.now() + '_ai',
+          type: 'ai_analysis',
+          expert: aiData.expert_analysis.expert_info.name,
+          severity: aiData.ai_recommendations.overall_assessment.severity_level,
+          spots_analyzed: wasteSpots.length,
+          location: `${locationInput.lat.toFixed(4)}, ${locationInput.lng.toFixed(4)}`,
+          address: locationInput.address,
+          timestamp: new Date(),
+          recommendations_count: aiData.action_plan.prioritized_actions.length,
+          total_cost: aiData.cost_analysis.breakdown.total
+        };
+
+        setDetectionHistory(prev => [aiHistoryEntry, ...prev.slice(0, 9)]);
+        
+        console.log(`AI Analysis completed: ${aiData.ai_recommendations.overall_assessment.severity_level} severity`);
+      } else {
+        throw new Error(aiData.message || 'AI analysis failed');
+      }
+
+    } catch (error) {
+      console.error('AI recommendations error:', error);
+      alert(`Failed to get AI recommendations: ${error.message}`);
+    } finally {
+      setIsGettingAIAdvice(false);
     }
   };
 
@@ -456,6 +557,30 @@ export default function ThermalSpotDetection({ location, onDetectionUpdate }) {
             )}
           </Button>
 
+          {/* AI Recommendations Button */}
+          {detectionResults && detectionResults.dumps && detectionResults.dumps.length > 0 && (
+            <Button
+              onClick={() => getAIRecommendations(detectionResults.dumps)}
+              disabled={isGettingAIAdvice}
+              className="w-full gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+              size="lg"
+            >
+              {isGettingAIAdvice ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Getting AI Expert Advice...
+                </>
+              ) : (
+                <>
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  Get AI Expert Recommendations
+                </>
+              )}
+            </Button>
+          )}
+
           {/* Current Location Info */}
           <Alert className="bg-green-50 border-green-200">
             <MapPinIcon className="h-4 w-4" />
@@ -620,6 +745,239 @@ export default function ThermalSpotDetection({ location, onDetectionUpdate }) {
           </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* AI Recommendations Modal */}
+      {showAIRecommendations && aiRecommendations && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+            <CardHeader className="pb-3 bg-gradient-to-r from-purple-50 to-blue-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  <div>
+                    <CardTitle className="text-lg text-gray-900">AI Urban Expert Recommendations</CardTitle>
+                    <CardDescription className="text-sm text-gray-600">
+                      Expert analysis by {aiRecommendations.expert_analysis.expert_info.name}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-purple-100 text-purple-700">
+                    🎓 {aiRecommendations.expert_analysis.expert_info.title}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowAIRecommendations(false)}
+                    className="h-8 w-8"
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6 p-6">
+              {/* Overall Assessment */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-lg border border-red-200">
+                  <div className={`text-2xl font-bold mb-2 ${
+                    aiRecommendations.ai_recommendations.overall_assessment.severity_level === 'Critical' ? 'text-red-600' :
+                    aiRecommendations.ai_recommendations.overall_assessment.severity_level === 'High' ? 'text-orange-600' :
+                    aiRecommendations.ai_recommendations.overall_assessment.severity_level === 'Medium' ? 'text-yellow-600' : 'text-green-600'
+                  }`}>
+                    {aiRecommendations.ai_recommendations.overall_assessment.severity_level}
+                  </div>
+                  <div className="text-sm text-gray-600">Severity Level</div>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                  <div className="text-2xl font-bold text-blue-600 mb-2">
+                    {aiRecommendations.action_plan.prioritized_actions.length}
+                  </div>
+                  <div className="text-sm text-gray-600">Action Items</div>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
+                  <div className="text-2xl font-bold text-green-600 mb-2">
+                    ${(aiRecommendations.cost_analysis.breakdown.total / 1000).toFixed(0)}K
+                  </div>
+                  <div className="text-sm text-gray-600">Est. Total Cost</div>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+                  <div className="text-2xl font-bold text-purple-600 mb-2">
+                    {aiRecommendations.expert_analysis.analysis_summary.total_spots_analyzed}
+                  </div>
+                  <div className="text-sm text-gray-600">Spots Analyzed</div>
+                </div>
+              </div>
+
+              {/* Primary Concerns */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-orange-600" />
+                  Primary Concerns
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {aiRecommendations.ai_recommendations.overall_assessment.primary_concerns.map((concern, index) => (
+                    <div key={index} className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      <div className="text-sm font-medium text-orange-800">{concern}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Immediate Actions */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <ClockIcon className="h-5 w-5 text-red-600" />
+                  Immediate Actions Required
+                </h3>
+                <div className="space-y-3">
+                  {aiRecommendations.ai_recommendations.immediate_actions.map((action, index) => (
+                    <div key={index} className="p-4 bg-red-50 rounded-lg border border-red-200">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-medium text-red-800 mb-1">{action.action}</div>
+                          <div className="text-sm text-red-700 mb-2">{action.description}</div>
+                          <div className="flex items-center gap-4 text-xs text-red-600">
+                            <span>⏱️ {action.timeframe}</span>
+                            <span>👤 {action.responsible_party}</span>
+                            <span>💰 {action.estimated_cost}</span>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className={`ml-2 ${
+                          action.priority === 'High' ? 'bg-red-100 text-red-700' :
+                          action.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {action.priority}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Short-term Solutions */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Cog6ToothIcon className="h-5 w-5 text-blue-600" />
+                  Short-term Solutions
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {aiRecommendations.ai_recommendations.short_term_solutions.map((solution, index) => (
+                    <div key={index} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="font-medium text-blue-800 mb-2">{solution.solution}</div>
+                      <div className="text-sm text-blue-700 mb-3">{solution.description}</div>
+                      <div className="space-y-1 text-xs text-blue-600">
+                        <div>⏱️ Timeline: {solution.implementation_time}</div>
+                        <div>💰 Cost: {solution.cost_estimate}</div>
+                        <div>📈 Impact: {solution.expected_impact}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Long-term Strategies */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <ChartBarIcon className="h-5 w-5 text-green-600" />
+                  Long-term Strategies
+                </h3>
+                <div className="space-y-3">
+                  {aiRecommendations.ai_recommendations.long_term_strategies.map((strategy, index) => (
+                    <div key={index} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="font-medium text-green-800 mb-2">{strategy.strategy}</div>
+                      <div className="text-sm text-green-700 mb-3">{strategy.description}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-green-600">
+                        <div>⏱️ Timeline: {strategy.timeline}</div>
+                        <div>💰 Investment: {strategy.investment_required}</div>
+                        <div>🌱 Sustainability: {strategy.sustainability_impact}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cost Analysis */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                  Cost Breakdown & ROI
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-gray-800">Investment Breakdown</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between p-2 bg-gray-50 rounded">
+                        <span className="text-sm">Immediate Actions</span>
+                        <span className="font-medium">${aiRecommendations.cost_analysis.breakdown.immediate.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between p-2 bg-gray-50 rounded">
+                        <span className="text-sm">Short-term Solutions</span>
+                        <span className="font-medium">${aiRecommendations.cost_analysis.breakdown.short_term.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between p-2 bg-gray-50 rounded">
+                        <span className="text-sm">Long-term Strategies</span>
+                        <span className="font-medium">${aiRecommendations.cost_analysis.breakdown.long_term.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between p-2 bg-green-100 rounded border-t-2 border-green-300">
+                        <span className="font-medium">Total Investment</span>
+                        <span className="font-bold text-green-700">${aiRecommendations.cost_analysis.breakdown.total.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-gray-800">ROI Projections</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between p-2 bg-blue-50 rounded">
+                        <span className="text-sm">Annual Savings</span>
+                        <span className="font-medium">${aiRecommendations.cost_analysis.roi_projections.annual_savings.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between p-2 bg-blue-50 rounded">
+                        <span className="text-sm">Health Benefits</span>
+                        <span className="font-medium">${aiRecommendations.cost_analysis.roi_projections.health_benefits.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between p-2 bg-blue-50 rounded">
+                        <span className="text-sm">Payback Period</span>
+                        <span className="font-medium">{aiRecommendations.cost_analysis.roi_projections.payback_period}</span>
+                      </div>
+                      <div className="flex justify-between p-2 bg-blue-100 rounded border-t-2 border-blue-300">
+                        <span className="font-medium">5-Year Net Benefit</span>
+                        <span className="font-bold text-blue-700">${aiRecommendations.cost_analysis.roi_projections.net_benefit_5_years.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expert Signature */}
+              <div className="mt-8 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                      <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-purple-800">{aiRecommendations.expert_analysis.expert_info.name}</div>
+                      <div className="text-sm text-purple-600">{aiRecommendations.expert_analysis.expert_info.title}</div>
+                      <div className="text-xs text-purple-500">{aiRecommendations.expert_analysis.expert_info.specialization}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-600">Analysis Confidence</div>
+                    <div className="text-lg font-bold text-purple-600">{(aiRecommendations.expert_analysis.expert_info.confidence * 100).toFixed(0)}%</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Anomaly Detail Modal */}
