@@ -138,14 +138,11 @@ export default function WorkflowPanel({ activeWorkflow, workflowData, onAnalyze 
     });
   };
 
-  const handleAirQualityDetectionUpdate = (results) => {
-    // Pass air quality detection results to parent component
-    onAnalyze && onAnalyze({
-      workflow: 'airquality',
-      action: 'air_quality_results',
-      results: results,
-      location: { lat: analysisParams.lat, lon: analysisParams.lon }
-    });
+  const handleAirQualityDetectionUpdate = (data) => {
+    console.log('WorkflowPanel received air quality data:', data);
+    // The AirQualityDetection component sends the complete data object
+    // Just pass it through to the parent
+    onAnalyze && onAnalyze(data);
   };
 
   const handleHealthcareAnalysisUpdate = (results) => {

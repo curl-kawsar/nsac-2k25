@@ -25,12 +25,14 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import AirQualityMap from './AirQualityMap';
 
 export default function AirQualityDetection({ location, onDetectionUpdate }) {
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectionResults, setDetectionResults] = useState(null);
   const [selectedStation, setSelectedStation] = useState(null);
   const [detectionHistory, setDetectionHistory] = useState([]);
+  const [showResultsModal, setShowResultsModal] = useState(false);
   const [locationInput, setLocationInput] = useState({
     lat: location?.lat || 40.7128,
     lng: location?.lon || -74.0060,
@@ -180,6 +182,10 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
       const data = await response.json();
       console.log('Air quality detection results:', data);
 
+      // Generate stations
+      const stations = generateAirQualityStations(data);
+      console.log('Generated air quality stations:', stations);
+
       // Process and format results
       const processedResults = {
         success: true,
@@ -194,7 +200,7 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
           lon: locationInput.lng,
           bbox: data.bbox
         },
-        stations: generateAirQualityStations(data),
+        stations: stations,
         meta: data.meta,
         detectionTime: new Date(),
         filters: { ...filters }
@@ -218,15 +224,20 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
       };
 
       setDetectionHistory(prev => [historyEntry, ...prev.slice(0, 9)]);
+      setShowResultsModal(true); // Show modal when results are ready
 
       // Notify parent component
       if (onDetectionUpdate) {
-        onDetectionUpdate({
+        const updateData = {
           action: 'air_quality_results',
           location: { lat: locationInput.lat, lon: locationInput.lng },
           results: processedResults,
           workflow: 'airquality'
-        });
+        };
+        console.log('Sending air quality results to parent:', updateData);
+        console.log('Processed results structure:', processedResults);
+        console.log('Stations in results:', processedResults.stations);
+        onDetectionUpdate(updateData);
       }
 
     } catch (error) {
@@ -309,47 +320,47 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 lg:space-y-4">
       {/* Detection Controls */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-2 lg:pb-3">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <CloudIcon className="h-5 w-5 text-blue-500" />
+              <CardTitle className="flex items-center gap-2 text-sm lg:text-base">
+                <CloudIcon className="h-4 w-4 lg:h-5 lg:w-5 text-blue-500" />
                 Air Quality Detection
               </CardTitle>
-              <CardDescription>
-                Monitor air quality using NASA satellite data and ground stations
+              <CardDescription className="text-xs lg:text-sm">
+                Monitor air quality using NASA satellite data
               </CardDescription>
             </div>
-            <Badge variant={isDetecting ? "secondary" : "outline"} className="gap-2">
-              <div className={`h-2 w-2 rounded-full ${isDetecting ? 'bg-blue-400 animate-pulse' : 'bg-green-400'}`}></div>
-              {isDetecting ? 'Detecting...' : 'Ready'}
+            <Badge variant={isDetecting ? "secondary" : "outline"} className="gap-1 lg:gap-2">
+              <div className={`h-1.5 w-1.5 lg:h-2 lg:w-2 rounded-full ${isDetecting ? 'bg-blue-400 animate-pulse' : 'bg-green-400'}`}></div>
+              <span className="text-xs lg:text-sm">{isDetecting ? 'Detecting...' : 'Ready'}</span>
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 lg:space-y-6">
 
           {/* Location Input Section */}
-          <div className="space-y-4 p-4 bg-blue-50/50 rounded-lg border border-blue-200">
-            <div className="flex items-center gap-2 mb-3">
-              <MapPinIcon className="h-4 w-4 text-blue-600" />
-              <Label className="text-sm font-medium text-blue-900">Detection Location</Label>
+          <div className="space-y-3 lg:space-y-4 p-3 lg:p-4 bg-blue-50/50 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2 mb-2 lg:mb-3">
+              <MapPinIcon className="h-3 w-3 lg:h-4 lg:w-4 text-blue-600" />
+              <Label className="text-xs lg:text-sm font-medium text-blue-900">Detection Location</Label>
             </div>
             
             {/* Address Search */}
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="address-search" className="text-sm">Search City or Address</Label>
-                <div className="flex gap-2">
+            <div className="space-y-2 lg:space-y-3">
+              <div className="space-y-1 lg:space-y-2">
+                <Label htmlFor="address-search" className="text-xs lg:text-sm">Search City or Address</Label>
+                <div className="flex gap-1 lg:gap-2">
                   <Input
                     id="address-search"
                     type="text"
                     value={locationInput.address}
                     onChange={(e) => setLocationInput(prev => ({ ...prev, address: e.target.value }))}
-                    placeholder="e.g., New York City, London, Beijing, etc."
-                    className="flex-1"
+                    placeholder="e.g., New York, London..."
+                    className="flex-1 text-xs lg:text-sm h-8 lg:h-10"
                     list="recent-searches"
                   />
                   <datalist id="recent-searches">
@@ -361,18 +372,18 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
                     onClick={() => locationInput.address && geocodeAddress(locationInput.address)}
                     disabled={!locationInput.address || isDetecting}
                     size="sm"
-                    className="gap-2"
+                    className="gap-1 lg:gap-2 px-2 lg:px-3 h-8 lg:h-10 text-xs lg:text-sm"
                   >
-                    <MagnifyingGlassIcon className="h-4 w-4" />
+                    <MagnifyingGlassIcon className="h-3 w-3 lg:h-4 lg:w-4" />
                     Find
                   </Button>
                 </div>
                 
                 {/* Recent Searches Quick Access */}
                 {recentSearches.length > 0 && (
-                  <div className="flex flex-wrap gap-2 items-center">
+                  <div className="flex flex-wrap gap-1 lg:gap-2 items-center">
                     <span className="text-xs text-muted-foreground">Recent:</span>
-                    {recentSearches.slice(0, 3).map((search, index) => (
+                    {recentSearches.slice(0, 2).map((search, index) => (
                       <Button
                         key={index}
                         variant="outline"
@@ -381,9 +392,9 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
                           setLocationInput(prev => ({ ...prev, address: search }));
                           geocodeAddress(search);
                         }}
-                        className="h-6 px-2 text-xs"
+                        className="h-5 lg:h-6 px-1 lg:px-2 text-xs"
                       >
-                        {search.length > 20 ? search.substring(0, 20) + '...' : search}
+                        {search.length > 15 ? search.substring(0, 15) + '...' : search}
                       </Button>
                     ))}
                   </div>
@@ -391,9 +402,9 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
               </div>
 
               {/* Coordinate Inputs */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="latitude" className="text-sm">Latitude</Label>
+              <div className="grid grid-cols-2 gap-2 lg:gap-3">
+                <div className="space-y-1 lg:space-y-2">
+                  <Label htmlFor="latitude" className="text-xs lg:text-sm">Latitude</Label>
                   <Input
                     id="latitude"
                     type="number"
@@ -402,10 +413,11 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
                     step="0.00001"
                     min="-90"
                     max="90"
+                    className="text-xs lg:text-sm h-8 lg:h-10"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="longitude" className="text-sm">Longitude</Label>
+                <div className="space-y-1 lg:space-y-2">
+                  <Label htmlFor="longitude" className="text-xs lg:text-sm">Longitude</Label>
                   <Input
                     id="longitude"
                     type="number"
@@ -414,6 +426,7 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
                     step="0.00001"
                     min="-180"
                     max="180"
+                    className="text-xs lg:text-sm h-8 lg:h-10"
                   />
                 </div>
               </div>
@@ -421,31 +434,31 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
           </div>
 
           {/* Detection Filters */}
-          <div className="space-y-4 p-4 bg-gray-50/50 rounded-lg border">
-            <div className="flex items-center gap-2 mb-3">
-              <AdjustmentsHorizontalIcon className="h-4 w-4 text-gray-600" />
-              <Label className="text-sm font-medium">Detection Parameters</Label>
+          <div className="space-y-3 lg:space-y-4 p-3 lg:p-4 bg-gray-50/50 rounded-lg border">
+            <div className="flex items-center gap-2 mb-2 lg:mb-3">
+              <AdjustmentsHorizontalIcon className="h-3 w-3 lg:h-4 lg:w-4 text-gray-600" />
+              <Label className="text-xs lg:text-sm font-medium">Detection Parameters</Label>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="detection-date" className="text-sm font-medium">Date</Label>
+            <div className="space-y-3">
+              <div className="space-y-1 lg:space-y-2">
+                <Label htmlFor="detection-date" className="text-xs lg:text-sm font-medium">Date</Label>
                 <Input
                   id="detection-date"
                   type="date"
                   value={filters.date}
                   onChange={(e) => setFilters(prev => ({ ...prev, date: e.target.value }))}
                   max={new Date().toISOString().split('T')[0]}
-                  className="text-sm"
+                  className="text-xs lg:text-sm h-8 lg:h-10"
                 />
                 <p className="text-xs text-muted-foreground leading-tight">
-                  💡 NASA satellite data is available for past dates. Future dates will use simulated data.
+                  💡 NASA data available for past dates
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="pollutant-filter" className="text-sm font-medium">Focus Pollutant</Label>
+              <div className="space-y-1 lg:space-y-2">
+                <Label htmlFor="pollutant-filter" className="text-xs lg:text-sm font-medium">Focus Pollutant</Label>
                 <Select value={filters.pollutant} onValueChange={(value) => setFilters(prev => ({ ...prev, pollutant: value }))}>
-                  <SelectTrigger className="text-sm">
+                  <SelectTrigger className="text-xs lg:text-sm h-8 lg:h-10">
                     <SelectValue placeholder="Select pollutant" />
                   </SelectTrigger>
                   <SelectContent>
@@ -456,8 +469,8 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 sm:col-span-2 lg:col-span-1">
-                <Label htmlFor="aqi-threshold" className="text-sm font-medium">AQI Threshold</Label>
+              <div className="space-y-1 lg:space-y-2">
+                <Label htmlFor="aqi-threshold" className="text-xs lg:text-sm font-medium">AQI Threshold</Label>
                 <Input
                   id="aqi-threshold"
                   type="number"
@@ -465,7 +478,7 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
                   onChange={(e) => setFilters(prev => ({ ...prev, aqiThreshold: parseInt(e.target.value) }))}
                   min="0"
                   max="500"
-                  className="text-sm"
+                  className="text-xs lg:text-sm h-8 lg:h-10"
                   placeholder="e.g., 50"
                 />
                 <p className="text-xs text-muted-foreground">
@@ -476,10 +489,10 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
           </div>
 
           {/* Heat Map Toggle */}
-          <div className="flex items-center justify-between p-3 bg-green-50/50 rounded-lg border border-green-200">
+          <div className="flex items-center justify-between p-2 lg:p-3 bg-green-50/50 rounded-lg border border-green-200">
             <div className="space-y-1">
-              <Label className="text-sm font-medium">Station Visualization</Label>
-              <p className="text-xs text-muted-foreground">Show air quality monitoring stations on map</p>
+              <Label className="text-xs lg:text-sm font-medium">Station Visualization</Label>
+              <p className="text-xs text-muted-foreground">Show stations on map</p>
             </div>
             <Switch
               checked={showHeatMap}
@@ -491,17 +504,17 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
           <Button
             onClick={runAirQualityDetection}
             disabled={isDetecting}
-            className="w-full gap-2"
+            className="w-full gap-2 h-10 lg:h-12 text-xs lg:text-sm"
             size="lg"
           >
             {isDetecting ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Analyzing Air Quality...
+                <div className="w-3 h-3 lg:w-4 lg:h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Analyzing...
               </>
             ) : (
               <>
-                <CloudIcon className="h-4 w-4" />
+                <CloudIcon className="h-3 w-3 lg:h-4 lg:w-4" />
                 Run Air Quality Analysis
               </>
             )}
@@ -509,19 +522,19 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
 
           {/* Current Location Info */}
           <Alert className="bg-green-50 border-green-200">
-            <MapPinIcon className="h-4 w-4" />
+            <MapPinIcon className="h-3 w-3 lg:h-4 lg:w-4" />
             <AlertDescription>
               <div className="space-y-1">
-                <div className="font-medium text-green-800">
+                <div className="font-medium text-green-800 text-xs lg:text-sm">
                   Target: {locationInput.lat.toFixed(4)}, {locationInput.lng.toFixed(4)}
                 </div>
                 {locationInput.address && (
-                  <div className="text-sm text-green-700">
+                  <div className="text-xs text-green-700">
                     📍 {locationInput.address}
                   </div>
                 )}
-                <div className="text-sm text-green-700">
-                  📅 Date: {filters.date} | 🎯 Focus: {filters.pollutant} | 📊 Threshold: {filters.aqiThreshold} AQI
+                <div className="text-xs text-green-700">
+                  📅 {filters.date} | 🎯 {filters.pollutant} | 📊 {filters.aqiThreshold} AQI
                 </div>
               </div>
             </AlertDescription>
@@ -529,222 +542,55 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
         </CardContent>
       </Card>
 
-      {/* Detection Results */}
+      {/* Quick Results Button - Show when results are available */}
       {detectionResults && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircleIcon className="h-5 w-5 text-green-600" />
-                  Air Quality Results
-                </CardTitle>
-                <CardDescription>
-                  {formatTimestamp(detectionResults.detectionTime)}
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                {detectionResults.meta?.source && (
-                  <Badge variant={detectionResults.meta.dataType === 'real-nasa' ? 'default' : 'secondary'}>
-                    {detectionResults.meta.source}
-                  </Badge>
-                )}
-                {detectionResults.meta?.dataType === 'real-nasa' && (
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    🛰️ Real NASA Data
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {/* Results Summary - Responsive Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
-                <div className={`text-2xl sm:text-3xl font-bold ${getAQIColor(detectionResults.aqi)} mb-2`}>
-                  {detectionResults.aqi}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600 mb-2">Overall AQI</div>
-                <Badge variant="outline" className={`text-xs ${getAQIBgColor(detectionResults.aqi)}`}>
-                  {detectionResults.category}
-                </Badge>
-              </div>
-              <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
-                <div className="text-xl sm:text-2xl font-bold text-purple-600 mb-2">
-                  {detectionResults.driver}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600">Primary Pollutant</div>
-              </div>
-              <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
-                <div className="text-xl sm:text-2xl font-bold text-green-600 mb-2">
-                  {detectionResults.stations?.length || 0}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600">Monitoring Stations</div>
-              </div>
-              <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
-                <div className="text-lg sm:text-xl font-bold text-orange-600 mb-2 truncate" title={detectionResults.city}>
-                  {detectionResults.city}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600">Location</div>
-              </div>
-            </div>
-
-            {/* Pollutant Details - Responsive */}
-            <div className="space-y-4">
-              <h5 className="font-medium text-gray-900 text-sm sm:text-base">Pollutant Concentrations</h5>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {detectionResults.metrics.pm25 && (
-                  <div className="p-3 sm:p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200 hover:shadow-md transition-shadow">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                      <div className="flex-1">
-                        <div className="font-semibold text-orange-800 text-base sm:text-lg">PM2.5</div>
-                        <div className="text-xs sm:text-sm text-orange-600">Fine Particles</div>
-                      </div>
-                      <div className="text-left sm:text-right">
-                        <div className="text-lg sm:text-xl font-bold text-orange-800">
-                          {detectionResults.metrics.pm25}
-                        </div>
-                        <div className="text-xs sm:text-sm text-orange-600">µg/m³</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {detectionResults.metrics.o3 && (
-                  <div className="p-3 sm:p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200 hover:shadow-md transition-shadow">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                      <div className="flex-1">
-                        <div className="font-semibold text-blue-800 text-base sm:text-lg">O₃</div>
-                        <div className="text-xs sm:text-sm text-blue-600">Ground Ozone</div>
-                      </div>
-                      <div className="text-left sm:text-right">
-                        <div className="text-lg sm:text-xl font-bold text-blue-800">
-                          {detectionResults.metrics.o3}
-                        </div>
-                        <div className="text-xs sm:text-sm text-blue-600">µg/m³</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {detectionResults.metrics.no2 && (
-                  <div className="p-3 sm:p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-lg border border-red-200 hover:shadow-md transition-shadow">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                      <div className="flex-1">
-                        <div className="font-semibold text-red-800 text-base sm:text-lg">NO₂</div>
-                        <div className="text-xs sm:text-sm text-red-600">Nitrogen Dioxide</div>
-                      </div>
-                      <div className="text-left sm:text-right">
-                        <div className="text-lg sm:text-xl font-bold text-red-800">
-                          {detectionResults.metrics.no2}
-                        </div>
-                        <div className="text-xs sm:text-sm text-red-600">µg/m³</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Monitoring Stations - Responsive */}
-            {detectionResults.stations && detectionResults.stations.length > 0 && (
-              <div className="space-y-3 mt-6">
-                <h5 className="font-medium text-gray-900 text-sm sm:text-base">Monitoring Stations</h5>
-                <div className="grid grid-cols-1 gap-3">
-                  {detectionResults.stations.map((station, index) => (
-                    <div
-                      key={station.id}
-                      onClick={() => setSelectedStation(station)}
-                      className="p-3 sm:p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-all hover:shadow-md bg-gradient-to-r from-gray-50 to-gray-100"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-                        <div className="flex items-start sm:items-center space-x-3 flex-1">
-                          <div className={`h-3 w-3 sm:h-4 sm:w-4 rounded-full flex-shrink-0 mt-1 sm:mt-0 ${
-                            station.aqi <= 50 ? 'bg-green-500' :
-                            station.aqi <= 100 ? 'bg-yellow-500' :
-                            station.aqi <= 150 ? 'bg-orange-500' :
-                            station.aqi <= 200 ? 'bg-red-500' :
-                            'bg-purple-500'
-                          }`}></div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-900 text-sm sm:text-base truncate">{station.name}</div>
-                            <div className="text-xs sm:text-sm text-gray-500 font-mono">
-                              {station.location.lat.toFixed(4)}, {station.location.lng.toFixed(4)}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-left sm:text-right flex sm:flex-col items-start sm:items-end space-x-4 sm:space-x-0">
-                          <div className={`text-lg sm:text-xl font-bold ${getAQIColor(station.aqi)}`}>
-                            AQI {station.aqi}
-                          </div>
-                          <div className="text-xs sm:text-sm text-gray-500 whitespace-nowrap">{station.category}</div>
-                        </div>
-                      </div>
-                      
-                      {/* Mobile-friendly measurements preview */}
-                      {station.measurements && (
-                        <div className="mt-3 pt-3 border-t border-gray-200 sm:hidden">
-                          <div className="flex justify-between text-xs text-gray-600">
-                            {station.measurements.pm25 && <span>PM2.5: {station.measurements.pm25.toFixed(1)}</span>}
-                            {station.measurements.o3 && <span>O₃: {station.measurements.o3.toFixed(1)}</span>}
-                            {station.measurements.no2 && <span>NO₂: {station.measurements.no2.toFixed(1)}</span>}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="fixed bottom-4 right-4 z-40">
+          <Button 
+            onClick={() => setShowResultsModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+            size="sm"
+          >
+            <CloudIcon className="h-4 w-4 mr-2" />
+            View Results
+          </Button>
+        </div>
       )}
 
       {/* Detection History - Responsive */}
       {detectionHistory.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <ClockIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+          <CardHeader className="pb-2 lg:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm lg:text-base">
+              <ClockIcon className="h-3 w-3 lg:h-4 lg:w-4" />
               Detection History
             </CardTitle>
-            <CardDescription className="text-sm">
+            <CardDescription className="text-xs lg:text-sm">
               Previous air quality analysis results
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {detectionHistory.map((detection) => (
-                <div key={detection.id} className="p-3 sm:p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border hover:shadow-md transition-shadow">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between space-y-3 sm:space-y-0">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm sm:text-base font-medium text-gray-900 mb-2">
+            <div className="space-y-2 lg:space-y-3">
+              {detectionHistory.slice(0, 2).map((detection) => (
+                <div key={detection.id} className="p-2 lg:p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border hover:shadow-md transition-shadow">
+                  <div className="flex flex-col space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs lg:text-sm font-medium text-gray-900">
                         <span className={`${getAQIColor(detection.aqi)} font-bold`}>AQI {detection.aqi}</span>
                         <span className="text-gray-600 ml-2">- {detection.category}</span>
-                      </div>
-                      <div className="text-xs sm:text-sm text-gray-500 space-y-1">
-                        <div className="flex items-start space-x-1">
-                          <span>📍</span>
-                          <span className="truncate">{detection.address || detection.city}</span>
-                        </div>
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 space-y-1 sm:space-y-0">
-                          <span className="flex items-center space-x-1">
-                            <span>📐</span>
-                            <span className="font-mono text-xs">{detection.location}</span>
-                          </span>
-                          <span className="hidden sm:inline">•</span>
-                          <span className="text-xs">{detection.timestamp.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-left sm:text-right flex sm:flex-col items-start sm:items-end space-x-4 sm:space-x-0 space-y-0 sm:space-y-1">
-                      <div className={`text-sm font-semibold ${getAQIColor(detection.aqi)}`}>
-                        {detection.driver}
                       </div>
                       <div className={`text-xs px-2 py-1 rounded-full ${
                         detection.dataType === 'real-nasa' ? 'bg-green-100 text-green-700' : 
                         detection.dataType === 'simulated' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
                       }`}>
-                        {detection.dataType === 'real-nasa' ? '🛰️ Real NASA' : 
-                         detection.dataType === 'simulated' ? '🔮 Simulated' : '📊 NASA Data'}
+                        {detection.dataType === 'real-nasa' ? '🛰️ NASA' : 
+                         detection.dataType === 'simulated' ? '🔮 Sim' : '📊 Data'}
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <div className="truncate">📍 {detection.address || detection.city}</div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono">{detection.location}</span>
+                        <span>{detection.timestamp.toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
@@ -753,6 +599,247 @@ export default function AirQualityDetection({ location, onDetectionUpdate }) {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Results Modal - Bottom Position */}
+      {showResultsModal && detectionResults && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50">
+          <Card className="w-full max-w-6xl max-h-[80vh] overflow-y-auto rounded-t-xl rounded-b-none border-b-0 animate-in slide-in-from-bottom duration-300">
+            <CardHeader className="pb-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CloudIcon className="h-6 w-6 text-blue-600" />
+                  <div>
+                    <CardTitle className="text-lg text-gray-900">Air Quality Analysis Results</CardTitle>
+                    <CardDescription className="text-sm text-gray-600">
+                      Analysis completed for {detectionResults.city} on {detectionResults.date}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {detectionResults.meta?.dataType === 'real-nasa' && (
+                    <Badge variant="outline" className="bg-green-100 text-green-700">
+                      🛰️ NASA Data
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className={`${getAQIBgColor(detectionResults.aqi)}`}>
+                    {detectionResults.category}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowResultsModal(false)}
+                    className="h-8 w-8"
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6 p-6">
+              {/* Results Summary Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                  <div className={`text-3xl font-bold ${getAQIColor(detectionResults.aqi)} mb-2`}>
+                    {detectionResults.aqi}
+                  </div>
+                  <div className="text-sm text-gray-600 mb-2">Overall AQI</div>
+                  <Badge variant="outline" className={`text-xs ${getAQIBgColor(detectionResults.aqi)}`}>
+                    {detectionResults.category}
+                  </Badge>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+                  <div className="text-2xl font-bold text-purple-600 mb-2">
+                    {detectionResults.driver}
+                  </div>
+                  <div className="text-sm text-gray-600">Primary Pollutant</div>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
+                  <div className="text-3xl font-bold text-green-600 mb-2">
+                    {detectionResults.stations?.length || 0}
+                  </div>
+                  <div className="text-sm text-gray-600">Monitoring Stations</div>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
+                  <div className="text-xl font-bold text-orange-600 mb-2 truncate" title={detectionResults.city}>
+                    {detectionResults.city}
+                  </div>
+                  <div className="text-sm text-gray-600">Location</div>
+                </div>
+              </div>
+
+              {/* Pollutant Details */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <ChartBarIcon className="h-5 w-5 text-blue-600" />
+                  Pollutant Concentrations
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {detectionResults.metrics.pm25 && (
+                    <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold text-orange-800 text-lg">PM2.5</div>
+                          <div className="text-sm text-orange-600">Fine Particles</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-orange-800">
+                            {detectionResults.metrics.pm25}
+                          </div>
+                          <div className="text-sm text-orange-600">µg/m³</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {detectionResults.metrics.o3 && (
+                    <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold text-blue-800 text-lg">O₃</div>
+                          <div className="text-sm text-blue-600">Ground Ozone</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-blue-800">
+                            {detectionResults.metrics.o3}
+                          </div>
+                          <div className="text-sm text-blue-600">µg/m³</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {detectionResults.metrics.no2 && (
+                    <div className="p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-lg border border-red-200 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold text-red-800 text-lg">NO₂</div>
+                          <div className="text-sm text-red-600">Nitrogen Dioxide</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-red-800">
+                            {detectionResults.metrics.no2}
+                          </div>
+                          <div className="text-sm text-red-600">µg/m³</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Monitoring Stations */}
+              {detectionResults.stations && detectionResults.stations.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Squares2X2Icon className="h-5 w-5 text-green-600" />
+                    Monitoring Stations Network
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {detectionResults.stations.map((station, index) => (
+                      <div
+                        key={station.id}
+                        onClick={() => setSelectedStation(station)}
+                        className="p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-all bg-white shadow-sm hover:shadow-md"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-3">
+                            <div className={`h-4 w-4 rounded-full flex-shrink-0 mt-1 ${
+                              station.aqi <= 50 ? 'bg-green-500' :
+                              station.aqi <= 100 ? 'bg-yellow-500' :
+                              station.aqi <= 150 ? 'bg-orange-500' :
+                              station.aqi <= 200 ? 'bg-red-500' :
+                              'bg-purple-500'
+                            }`}></div>
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-900 text-base">{station.name}</div>
+                              <div className="text-sm text-gray-600 mt-1">
+                                📍 {station.location.lat.toFixed(4)}, {station.location.lng.toFixed(4)}
+                              </div>
+                              <div className="text-sm text-blue-600 mt-1">
+                                📊 Status: {station.status === 'operational' ? '✅ Operational' : '⚠️ Maintenance'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className={`text-lg font-bold ${getAQIColor(station.aqi)}`}>
+                              {station.aqi}
+                            </div>
+                            <div className="text-xs text-gray-500">{station.category}</div>
+                          </div>
+                        </div>
+                        
+                        {/* Measurements preview */}
+                        {station.measurements && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                              {station.measurements.pm25 && (
+                                <span className="text-center">
+                                  <div className="font-medium">PM2.5</div>
+                                  <div>{station.measurements.pm25.toFixed(1)}</div>
+                                </span>
+                              )}
+                              {station.measurements.o3 && (
+                                <span className="text-center">
+                                  <div className="font-medium">O₃</div>
+                                  <div>{station.measurements.o3.toFixed(1)}</div>
+                                </span>
+                              )}
+                              {station.measurements.no2 && (
+                                <span className="text-center">
+                                  <div className="font-medium">NO₂</div>
+                                  <div>{station.measurements.no2.toFixed(1)}</div>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Health Advisory */}
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-start space-x-3">
+                  <InformationCircleIcon className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-blue-800 mb-2">Health Advisory & Data Sources</h4>
+                    <div className="text-sm text-blue-700 space-y-1">
+                      <p><strong>Recommendation:</strong> 
+                        {detectionResults.aqi <= 50 ? 'Air quality is satisfactory for most people.' :
+                         detectionResults.aqi <= 100 ? 'Unusually sensitive people should consider reducing prolonged outdoor exertion.' :
+                         detectionResults.aqi <= 150 ? 'Sensitive groups should reduce prolonged outdoor exertion.' :
+                         detectionResults.aqi <= 200 ? 'Everyone should reduce prolonged outdoor exertion.' :
+                         'Everyone should avoid prolonged outdoor exertion.'}
+                      </p>
+                      <p><strong>Data Source:</strong> {detectionResults.meta?.source || 'NASA Satellite Data'} • Last Updated: {formatTimestamp(detectionResults.detectionTime)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-between items-center pt-4 border-t">
+                <div className="text-sm text-gray-500">
+                  Analysis completed at {new Date().toLocaleTimeString()}
+                </div>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setShowResultsModal(false)}>
+                    Close Results
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(detectionResults, null, 2));
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Export Data
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Station Detail Modal - Responsive */}

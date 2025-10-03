@@ -19,9 +19,27 @@ export default function LeafletMap({
   healthcareResults, 
   onLocationSelect 
 }) {
+  console.log('LeafletMap props received:', {
+    activeWorkflow,
+    thermalDetectionResults: !!thermalDetectionResults,
+    airQualityResults: !!airQualityResults,
+    healthcareResults: !!healthcareResults
+  });
+  console.log('Air quality results prop:', airQualityResults);
   const [isClient, setIsClient] = useState(false);
   const [thermalSpots, setThermalSpots] = useState([]);
   const [airQualityStations, setAirQualityStations] = useState([]);
+  
+  // Test air quality station for debugging
+  const testAirQualityStation = {
+    id: 'test_station',
+    name: 'Test Air Quality Station',
+    location: { lat: 40.7128, lng: -74.0060 },
+    aqi: 85,
+    category: 'Moderate',
+    measurements: { pm25: 25, o3: 45, no2: 15 },
+    status: 'operational'
+  };
   const [healthcareFacilities, setHealthcareFacilities] = useState([]);
   const mapRef = useRef(null);
 
@@ -36,8 +54,11 @@ export default function LeafletMap({
 
   // Memoize air quality stations for performance
   const memoizedAirQualityStations = useMemo(() => {
-    return airQualityResults?.stations || [];
-  }, [airQualityResults?.stations]);
+    console.log('LeafletMap: Processing air quality results:', airQualityResults);
+    const stations = airQualityResults?.stations || [];
+    console.log('LeafletMap: Extracted stations:', stations);
+    return stations;
+  }, [airQualityResults]);
 
   // Memoize healthcare facilities for performance
   const memoizedHealthcareFacilities = useMemo(() => {
@@ -76,14 +97,25 @@ export default function LeafletMap({
   }, [healthcareResults]);
 
   // Optimized auto-fit function
-  const autoFitBounds = useCallback((spots) => {
+  const autoFitBounds = useCallback((spots, type = 'thermal') => {
     if (spots.length > 0 && mapRef.current) {
       const timeoutId = setTimeout(() => {
         const map = mapRef.current;
         if (map && spots.length > 0) {
           try {
             const L = require('leaflet');
-            const bounds = spots.map(spot => [spot.location.lat, spot.location.lng]);
+            let bounds;
+            
+            // Handle different data structures
+            if (type === 'airquality') {
+              bounds = spots.map(station => [station.location.lat, station.location.lng]);
+            } else if (type === 'healthcare') {
+              bounds = spots.map(facility => [facility.lat, facility.lon]);
+            } else {
+              // Default thermal spots structure
+              bounds = spots.map(spot => [spot.location.lat, spot.location.lng]);
+            }
+            
             const latLngBounds = L.latLngBounds(bounds);
             map.fitBounds(latLngBounds, { 
               padding: [20, 20],
@@ -105,15 +137,20 @@ export default function LeafletMap({
     if (memoizedThermalSpots.length > 0) {
       setThermalSpots(memoizedThermalSpots);
       console.log(`Leaflet map: ${memoizedThermalSpots.length} thermal spots loaded`);
-      autoFitBounds(memoizedThermalSpots);
+      autoFitBounds(memoizedThermalSpots, 'thermal');
     }
   }, [memoizedThermalSpots, autoFitBounds]);
 
   useEffect(() => {
+    console.log('Air quality stations effect triggered:', memoizedAirQualityStations);
     if (memoizedAirQualityStations.length > 0) {
       setAirQualityStations(memoizedAirQualityStations);
       console.log(`Leaflet map: ${memoizedAirQualityStations.length} air quality stations loaded`);
-      autoFitBounds(memoizedAirQualityStations);
+      console.log('Air quality stations data:', memoizedAirQualityStations);
+      autoFitBounds(memoizedAirQualityStations, 'airquality');
+    } else {
+      console.log('No air quality stations to display');
+      setAirQualityStations([]);
     }
   }, [memoizedAirQualityStations, autoFitBounds]);
 
@@ -121,7 +158,7 @@ export default function LeafletMap({
     if (memoizedHealthcareFacilities.length > 0) {
       setHealthcareFacilities(memoizedHealthcareFacilities);
       console.log(`Leaflet map: ${memoizedHealthcareFacilities.length} healthcare facilities loaded`);
-      autoFitBounds(memoizedHealthcareFacilities);
+      autoFitBounds(memoizedHealthcareFacilities, 'healthcare');
     }
   }, [memoizedHealthcareFacilities, autoFitBounds]);
 
@@ -346,7 +383,32 @@ export default function LeafletMap({
           })}
 
           {/* Air Quality Stations */}
+          {console.log('About to render air quality stations:', airQualityStations.length)}
+          {/* Test station for debugging */}
+          {airQualityStations.length === 0 && activeWorkflow === 'airquality' && (
+            <CircleMarker
+              key="test-air-quality-station"
+              center={[testAirQualityStation.location.lat, testAirQualityStation.location.lng]}
+              radius={12}
+              pathOptions={{
+                color: '#eab308',
+                fillColor: '#eab308',
+                fillOpacity: 0.7,
+                weight: 2,
+                opacity: 1
+              }}
+            >
+              <Popup>
+                <div style={{ padding: '8px', textAlign: 'center', minWidth: '220px' }}>
+                  <h3 style={{ margin: '0 0 5px 0', color: '#eab308', fontSize: '14px' }}>☁️ Test Air Quality Station</h3>
+                  <div>AQI: {testAirQualityStation.aqi}</div>
+                  <div>Category: {testAirQualityStation.category}</div>
+                </div>
+              </Popup>
+            </CircleMarker>
+          )}
           {airQualityStations.map((station, index) => {
+            console.log(`Rendering air quality station ${index}:`, station);
             const aqi = station.aqi || 50;
             const radius = Math.max(8, Math.min(18, aqi / 10));
             const color = aqi <= 50 ? '#16a34a' :   // Good - Green
@@ -576,6 +638,9 @@ export default function LeafletMap({
               <div className="w-2 h-2 rounded-full bg-red-600 mr-2"></div>
               <span className="text-gray-700">151+ Very Unhealthy</span>
             </div>
+          </div>
+          <div className="mt-2 pt-1 border-t border-gray-300">
+            <div className="text-gray-600 text-xs">Stations: {airQualityStations.length}</div>
           </div>
         </div>
       )}

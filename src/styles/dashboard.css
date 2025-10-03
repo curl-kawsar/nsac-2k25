@@ -1,0 +1,76 @@
+/* Dashboard Layout Styles */
+
+/* Smooth scrolling for sidebar panels */
+.dashboard-sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+.dashboard-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dashboard-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dashboard-sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+  border-radius: 3px;
+}
+
+.dashboard-sidebar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.7);
+}
+
+/* Sticky map container with smooth transitions */
+.sticky-map-container {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Ensure proper height calculation for sticky elements */
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    align-items: start;
+  }
+  
+  .sticky-map-container {
+    height: calc(100vh - 8rem);
+    max-height: calc(100vh - 8rem);
+  }
+  
+  .dashboard-sidebar {
+    max-height: calc(100vh - 5rem);
+    padding-bottom: 2rem;
+  }
+}
+
+/* Ensure map card fills the sticky container */
+.sticky-map-container .card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.sticky-map-container .card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 1023px) {
+  .sticky-map-container {
+    position: relative !important;
+    top: auto !important;
+  }
+}
+
+/* Improved card spacing in sidebars */
+.dashboard-card {
+  margin-bottom: 1rem;
+}
+
+.dashboard-card:last-child {
+  margin-bottom: 0;
+}

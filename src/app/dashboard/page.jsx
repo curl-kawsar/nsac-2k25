@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import '@/styles/dashboard.css';
 import {
   MapPinIcon,
   ExclamationTriangleIcon,
@@ -160,11 +161,11 @@ export default function CityWISEDashboard() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
                   <CpuChipIcon className="h-6 w-6 text-primary-foreground" />
                 </div>
-                <div>
+              <div>
                   <h1 className="text-xl font-bold text-foreground">CityWISE</h1>
                   <p className="text-xs text-muted-foreground">Urban Intelligence Platform</p>
                 </div>
@@ -194,19 +195,19 @@ export default function CityWISEDashboard() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <Tabs value={activeWorkflow} onValueChange={setActiveWorkflow} className="w-full">
             <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-none lg:inline-flex h-12">
-              {workflows.map((workflow) => {
-                const Icon = workflow.icon;
-                return (
+            {workflows.map((workflow) => {
+              const Icon = workflow.icon;
+              return (
                   <TabsTrigger
-                    key={workflow.id}
+                  key={workflow.id}
                     value={workflow.id}
                     className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                   >
                     <Icon className="h-4 w-4" />
                     <span className="hidden sm:inline">{workflow.name}</span>
                   </TabsTrigger>
-                );
-              })}
+              );
+            })}
             </TabsList>
           </Tabs>
         </div>
@@ -214,11 +215,11 @@ export default function CityWISEDashboard() {
 
       {/* Main Content */}
       <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 dashboard-grid">
           {/* Left Panel - Modern Metrics Cards */}
-          <div className="lg:col-span-1 space-y-4">
+          <div className="lg:col-span-1 space-y-4 dashboard-sidebar lg:pr-2">
             {/* Waste Management Card */}
-            <Card>
+            <Card className="dashboard-card">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <TrashIcon className="h-4 w-4 text-green-600" />
@@ -244,7 +245,7 @@ export default function CityWISEDashboard() {
             </Card>
 
             {/* Air Quality Card */}
-            <Card>
+            <Card className="dashboard-card">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <CloudIcon className="h-4 w-4 text-purple-600" />
@@ -272,7 +273,7 @@ export default function CityWISEDashboard() {
             </Card>
 
             {/* Healthcare Card */}
-            <Card>
+            <Card className="dashboard-card">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <HeartIcon className="h-4 w-4 text-red-600" />
@@ -300,7 +301,7 @@ export default function CityWISEDashboard() {
             </Card>
 
             {/* System Status Card */}
-            <Card>
+            <Card className="dashboard-card">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <CpuChipIcon className="h-4 w-4 text-blue-600" />
@@ -399,7 +400,7 @@ export default function CityWISEDashboard() {
                     <Badge variant="outline" className="bg-blue-50 text-blue-700">
                       {airQualityResults.city}
                     </Badge>
-                  </div>
+            </div>
                 </CardContent>
               </Card>
             )}
@@ -442,35 +443,37 @@ export default function CityWISEDashboard() {
             )}
           </div>
 
-          {/* Center Panel - Interactive Map */}
+          {/* Center Panel - Interactive Map (Sticky) */}
           <div className="lg:col-span-3">
-            <Card className="h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2">
-                  <MapPinIcon className="h-5 w-5" />
-                  Interactive Map
-                </CardTitle>
-                <CardDescription>
-                  Real-time thermal detection and urban analytics
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="h-[600px] lg:h-[700px] rounded-lg overflow-hidden">
-                  <LeafletMap
-                    activeWorkflow={activeWorkflow}
-                    alerts={dashboardData.alerts}
-                    thermalDetectionResults={thermalDetectionResults}
-                    airQualityResults={airQualityResults}
-                    healthcareResults={healthcareResults}
-                    onLocationSelect={(coords) => console.log('Location selected:', coords)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="sticky-map-container lg:sticky lg:top-20 z-10">
+              <Card className="h-full card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPinIcon className="h-5 w-5" />
+                    Interactive Map <CardDescription>
+                    Real-time thermal detection and urban analytics
+                  </CardDescription>
+                  </CardTitle>
+                  
+                </CardHeader>
+                <CardContent className="p-0 card-content">
+                  <div className="flex-1 rounded-lg overflow-hidden">
+                    <LeafletMap
+              activeWorkflow={activeWorkflow}
+              alerts={dashboardData.alerts}
+                      thermalDetectionResults={thermalDetectionResults}
+                      airQualityResults={airQualityResults}
+                      healthcareResults={healthcareResults}
+              onLocationSelect={(coords) => console.log('Location selected:', coords)}
+            />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* Right Panel - Workflow Controls */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 dashboard-sidebar lg:pl-2">
             <Card className="h-full">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
@@ -482,9 +485,9 @@ export default function CityWISEDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                <WorkflowPanel
-                  activeWorkflow={activeWorkflow}
-                  workflowData={workflows.find(w => w.id === activeWorkflow)}
+            <WorkflowPanel
+              activeWorkflow={activeWorkflow}
+              workflowData={workflows.find(w => w.id === activeWorkflow)}
                   onAnalyze={(params) => {
                     console.log('Analyze:', params);
                     // Handle thermal detection results
@@ -493,6 +496,8 @@ export default function CityWISEDashboard() {
                     }
                     // Handle air quality detection results
     if (params.action === 'air_quality_results') {
+      console.log('Dashboard received air quality results:', params.results);
+      console.log('Air quality stations from results:', params.results?.stations);
       setAirQualityResults(params.results);
     }
 
@@ -508,7 +513,7 @@ export default function CityWISEDashboard() {
       </main>
 
       {/* Modern Footer */}
-      <footer className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 mt-12">
+      {/* <footer className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 mt-12">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
@@ -536,7 +541,7 @@ export default function CityWISEDashboard() {
             </p>
           </div>
         </div>
-      </footer>
+      </footer> */}
     </div>
   );
 }
