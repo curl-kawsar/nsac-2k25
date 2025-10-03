@@ -398,13 +398,13 @@ export default function LeafletMap({
                 opacity: 1
               }}
             >
-              <Popup>
+              {/* <Popup>
                 <div style={{ padding: '8px', textAlign: 'center', minWidth: '220px' }}>
                   <h3 style={{ margin: '0 0 5px 0', color: '#eab308', fontSize: '14px' }}>☁️ Test Air Quality Station</h3>
                   <div>AQI: {testAirQualityStation.aqi}</div>
                   <div>Category: {testAirQualityStation.category}</div>
                 </div>
-              </Popup>
+              </Popup> */}
             </CircleMarker>
           )}
           {airQualityStations.map((station, index) => {
