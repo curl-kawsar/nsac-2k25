@@ -10,11 +10,16 @@ class WasteManagementAI {
       apiKey: process.env.OPENAI_API_KEY
     });
     
-    this.expertPersona = `You are Dr. Elena Rodriguez, a leading Urban Environmental Expert with 15+ years of experience in waste management, urban planning, and environmental sustainability. You specialize in:
+    this.expertPersona = `You are Dr. Elena Rodriguez, a leading Urban Environmental and Public Health Expert with 15+ years of experience in waste management, urban planning, environmental sustainability, and public health. You specialize in:
 
 - Illegal dump site remediation and prevention
 - Waste management system optimization
 - Environmental impact assessment
+- Public health risk assessment and mitigation
+- Community health protection strategies
+- Disease prevention and vector control
+- Air and water quality health impacts
+- Vulnerable population health protection
 - Community engagement strategies
 - Regulatory compliance and enforcement
 - Sustainable urban development
@@ -22,9 +27,11 @@ class WasteManagementAI {
 Your responses should be:
 - Professional yet accessible
 - Practical and actionable
-- Based on real-world urban planning principles
-- Considerate of environmental, social, and economic factors
-- Include specific timelines and cost estimates when possible`;
+- Based on real-world urban planning and public health principles
+- Considerate of environmental, social, economic, and health factors
+- Include specific health risk assessments and mitigation strategies
+- Provide health impact timelines and cost estimates
+- Address both immediate health risks and long-term health outcomes`;
   }
 
   /**
@@ -76,7 +83,36 @@ Please provide comprehensive recommendations in the following JSON format:
     "severity_level": "Low/Medium/High/Critical",
     "primary_concerns": ["concern1", "concern2"],
     "environmental_risk": "assessment",
-    "public_health_risk": "assessment"
+    "public_health_risk": "assessment",
+    "health_impact_score": "1-10 scale",
+    "vulnerable_populations_at_risk": ["children", "elderly", "pregnant women", "respiratory patients"]
+  },
+  "health_risk_assessment": {
+    "immediate_health_risks": [
+      {
+        "risk_type": "respiratory/gastrointestinal/skin/vector-borne",
+        "severity": "Low/Medium/High/Critical",
+        "affected_population": "population estimate",
+        "symptoms": ["symptom1", "symptom2"],
+        "exposure_pathway": "inhalation/ingestion/contact",
+        "time_to_onset": "timeframe"
+      }
+    ],
+    "long_term_health_impacts": [
+      {
+        "health_outcome": "chronic disease/cancer/developmental",
+        "risk_level": "Low/Medium/High",
+        "latency_period": "timeframe",
+        "population_at_risk": "demographic groups"
+      }
+    ],
+    "environmental_health_factors": {
+      "air_quality_impact": "assessment",
+      "water_contamination_risk": "assessment",
+      "soil_contamination_risk": "assessment",
+      "vector_breeding_potential": "assessment",
+      "odor_impact_radius": "distance in meters"
+    }
   },
   "immediate_actions": [
     {
@@ -85,7 +121,18 @@ Please provide comprehensive recommendations in the following JSON format:
       "timeframe": "immediate/1-7 days/1-4 weeks",
       "responsible_party": "who should do this",
       "estimated_cost": "cost range",
-      "description": "detailed explanation"
+      "description": "detailed explanation",
+      "health_benefit": "immediate health protection achieved"
+    }
+  ],
+  "health_protection_measures": [
+    {
+      "measure": "health protection strategy",
+      "target_population": "affected demographic",
+      "implementation_urgency": "immediate/short-term/long-term",
+      "health_outcome": "expected health improvement",
+      "cost_estimate": "cost range",
+      "responsible_agency": "health department/municipality"
     }
   ],
   "short_term_solutions": [
@@ -120,7 +167,20 @@ Please provide comprehensive recommendations in the following JSON format:
     "frequency": "monitoring schedule",
     "key_indicators": ["indicator1", "indicator2"],
     "technology_recommendations": ["tech1", "tech2"],
-    "reporting_schedule": "reporting frequency"
+    "reporting_schedule": "reporting frequency",
+    "health_monitoring": {
+      "health_surveillance_indicators": ["respiratory symptoms", "gastrointestinal illness", "skin conditions"],
+      "community_health_surveys": "survey frequency and methodology",
+      "environmental_health_testing": ["air quality", "water quality", "soil contamination"],
+      "health_data_reporting": "health department coordination"
+    }
+  },
+  "community_health_strategy": {
+    "public_health_communication": "health risk communication plan",
+    "vulnerable_population_protection": "special measures for at-risk groups",
+    "health_education_programs": "community health awareness initiatives",
+    "healthcare_system_coordination": "hospital and clinic preparation",
+    "emergency_health_response": "health emergency preparedness plan"
   },
   "stakeholder_engagement": {
     "community_involvement": "community engagement strategy",
@@ -312,10 +372,49 @@ Provide practical, evidence-based recommendations that consider local context, b
           primary_concerns: [
             "Illegal waste dumping detected",
             "Potential environmental contamination",
-            "Public health risks"
+            "Public health risks",
+            "Vector breeding potential",
+            "Air quality degradation"
           ],
           environmental_risk: `${highTempSpots} high-temperature spots indicate active waste burning or decomposition`,
-          public_health_risk: "Moderate to high risk depending on proximity to residential areas"
+          public_health_risk: "Moderate to high risk depending on proximity to residential areas",
+          health_impact_score: highTempSpots > 5 ? "8" : highTempSpots > 2 ? "6" : "4",
+          vulnerable_populations_at_risk: ["children", "elderly", "pregnant women", "individuals with respiratory conditions"]
+        },
+        health_risk_assessment: {
+          immediate_health_risks: [
+            {
+              risk_type: "respiratory",
+              severity: highTempSpots > 5 ? "High" : "Medium",
+              affected_population: `Estimated ${Math.ceil(wasteSpots.length * 500)} people within 500m radius`,
+              symptoms: ["coughing", "throat irritation", "eye irritation", "headaches"],
+              exposure_pathway: "inhalation",
+              time_to_onset: "minutes to hours"
+            },
+            {
+              risk_type: "vector-borne",
+              severity: "Medium",
+              affected_population: `Community within 1km radius`,
+              symptoms: ["fever", "rash", "gastrointestinal symptoms"],
+              exposure_pathway: "insect bites",
+              time_to_onset: "days to weeks"
+            }
+          ],
+          long_term_health_impacts: [
+            {
+              health_outcome: "chronic respiratory conditions",
+              risk_level: highTempSpots > 3 ? "High" : "Medium",
+              latency_period: "months to years",
+              population_at_risk: "children and elderly residents"
+            }
+          ],
+          environmental_health_factors: {
+            air_quality_impact: "Particulate matter and toxic gas emissions",
+            water_contamination_risk: "Potential groundwater contamination",
+            soil_contamination_risk: "Heavy metals and organic pollutants",
+            vector_breeding_potential: "High - stagnant water and organic waste",
+            odor_impact_radius: "500-1000 meters"
+          }
         },
         immediate_actions: [
           {
@@ -332,7 +431,26 @@ Provide practical, evidence-based recommendations that consider local context, b
             timeframe: "immediate",
             responsible_party: "Local authorities",
             estimated_cost: "$1,000-$5,000",
-            description: "Install barriers and warning signs to prevent further dumping and public access"
+            description: "Install barriers and warning signs to prevent further dumping and public access",
+            health_benefit: "Prevents direct contact exposure and reduces inhalation risks"
+          }
+        ],
+        health_protection_measures: [
+          {
+            measure: "Community health advisory and notification",
+            target_population: "Residents within 1km radius",
+            implementation_urgency: "immediate",
+            health_outcome: "Reduced exposure and early symptom recognition",
+            cost_estimate: "$2,000-$5,000",
+            responsible_agency: "Public Health Department"
+          },
+          {
+            measure: "Air quality monitoring and health surveillance",
+            target_population: "Vulnerable populations (children, elderly, respiratory patients)",
+            implementation_urgency: "short-term",
+            health_outcome: "Early detection of health impacts and exposure reduction",
+            cost_estimate: "$10,000-$25,000",
+            responsible_agency: "Environmental Health Agency"
           }
         ],
         short_term_solutions: [
@@ -371,9 +489,9 @@ Provide practical, evidence-based recommendations that consider local context, b
         }
       },
       expert_info: {
-        name: "CityWISE AI System",
-        title: "Automated Urban Analysis",
-        specialization: "Waste Management Pattern Recognition",
+        name: "Dr. Elena Rodriguez",
+        title: "Urban Environmental and Public Health Expert",
+        specialization: "Waste Management, Environmental Health, and Community Protection",
         confidence: 0.75
       },
       analysis_metadata: {
